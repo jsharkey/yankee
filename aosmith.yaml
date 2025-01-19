@@ -1,5 +1,15 @@
-# Onboard mature and stable ESP-12F WIFI module, large capacity 4M BYTE FLASH;
-# https://www.diymore.cc/products/ac-dc-power-supply-esp8266-wifi-four-way-relay-module-esp-12f-development-board?_pos=3&_sid=996384127&_ss=r
+
+# Onboard mature and stable ESP-12F WIFI module, large capacity 4M BYTE FLASH
+
+# https://www.diymore.cc/products/ac-dc-power-supply-esp8266-wifi-four-way-relay-module-esp-12f-development-board
+# RY1 = GPIO16
+# RY2 = GPIO14
+# RY3 = GPIO12
+# RY4 = GPIO13
+
+# https://www.diymore.cc/products/5v-power-supply-esp8266-wifi-dual-channel-relay-module-esp-12f-development-doard
+# RY1 = GPIO5
+# RY2 = GPIO4
 
 esphome:
   name: aosmith
@@ -23,10 +33,10 @@ logger:
 
 switch:
   - platform: gpio
-    pin: GPIO16
+    pin: GPIO5
     id: relay_vacation
   - platform: gpio
-    pin: GPIO14
+    pin: GPIO4
     id: relay_normal
   - platform: template
     id: switch_vacation
