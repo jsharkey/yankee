@@ -1,0 +1,60 @@
+
+sensor:
+  - platform: template
+    sensors:
+      temp_placeholder:
+        unit_of_measurement: °C
+        value_template: "20"
+  - platform: min_max
+    name: temp_up_loft
+    type: mean
+    entity_ids:
+      - sensor.invalid
+      - sensor.temp_placeholder
+  - platform: min_max
+    name: temp_up_beds
+    type: mean
+    entity_ids:
+      - sensor.invalid
+      - sensor.temp_placeholder
+
+input_boolean:
+  house_awake:
+    name: "House Awake"
+    icon: mdi:home-import-outline
+
+script:
+  hvac_awake:
+    sequence:
+      - service: climate.set_temperature
+        data:
+          hvac_mode: cool
+          temperature: 72
+        target:
+          entity_id:
+            - climate.midea_upstairs_bedrooms_ir
+            - climate.midea_upstairs_loft_ir
+      - service: climate.set_fan_mode
+        data:
+          fan_mode: auto
+        target:
+          entity_id:
+            - climate.midea_upstairs_bedrooms_ir
+            - climate.midea_upstairs_loft_ir
+  hvac_asleep:
+    sequence:
+      - service: climate.set_temperature
+        data:
+          hvac_mode: heat
+          temperature: 64
+        target:
+          entity_id:
+            - climate.midea_upstairs_bedrooms_ir
+            - climate.midea_upstairs_loft_ir
+      - service: climate.set_fan_mode
+        data:
+          fan_mode: auto
+        target:
+          entity_id:
+            - climate.midea_upstairs_bedrooms_ir
+            - climate.midea_upstairs_loft_ir

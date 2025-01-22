@@ -1,0 +1,26 @@
+- id: '1737519145208'
+  alias: do_house_awake
+  description: ''
+  trigger:
+  - platform: state
+    entity_id:
+    - input_boolean.house_awake
+    to: 'on'
+  condition: []
+  action:
+  - service: script.hvac_awake
+    data: {}
+  mode: single
+- id: '1737519182354'
+  alias: do_house_asleep
+  description: ''
+  trigger:
+  - platform: state
+    entity_id:
+    - input_boolean.house_awake
+    to: 'off'
+  condition: []
+  action:
+  - service: script.hvac_asleep
+    data: {}
+  mode: single
