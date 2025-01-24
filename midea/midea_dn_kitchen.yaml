@@ -40,6 +40,10 @@ sensor:
     id: temp_from_ha
     entity_id: sensor.temp_$zone
     internal: true
+  - platform: homeassistant
+    id: target_from_ha
+    entity_id: sensor.temp_$zone_target
+    internal: true
     filters:
       - throttle: 10s
       - heartbeat: 2min
@@ -47,4 +51,4 @@ sensor:
     on_value:
       remote_transmitter.transmit_midea:
         code: !lambda |-
-          return {0xA4, 0x82, 0x48, 0x7F, (uint8_t)(id(temp_from_ha).state - 31)};
+          return {0xA4, 0x82, 0x48, 0x7F, (uint8_t)(id(target_from_ha).state - 31)};

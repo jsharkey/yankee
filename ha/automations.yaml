@@ -1,14 +1,27 @@
 - id: '1737519145208'
-  alias: do_house_awake
+  alias: do_house_awake_summer
   description: ''
   trigger:
   - platform: state
     entity_id:
     - input_boolean.house_awake
     to: 'on'
-  condition: []
+  condition: "{{ now().month in [6,7,8,9] }}"
   action:
-  - service: script.hvac_awake
+  - service: script.hvac_awake_summer
+    data: {}
+  mode: single
+- id: '1737519145209'
+  alias: do_house_awake_winter
+  description: ''
+  trigger:
+  - platform: state
+    entity_id:
+    - input_boolean.house_awake
+    to: 'on'
+  condition: "{{ now().month not in [6,7,8,9] }}"
+  action:
+  - service: script.hvac_awake_winter
     data: {}
   mode: single
 - id: '1737519182354'
