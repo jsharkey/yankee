@@ -33,22 +33,25 @@ climate:
     id: midea_ir_$zone
     name: "Midea $zone_friendly (IR)"
     sensor: temp_from_ha
-    use_fahrenheit: true
+    use_fahrenheit: false
 
 sensor:
   - platform: homeassistant
     id: temp_from_ha
-    entity_id: sensor.temp_$zone
-    internal: true
-  - platform: homeassistant
-    id: target_from_ha
-    entity_id: sensor.temp_$zone_target
+    entity_id: sensor.temp_${zone}
     internal: true
     filters:
+      - lambda: return (x - 32.0) * (5.0/9.0);
+  - platform: homeassistant
+    id: target_from_ha
+    entity_id: sensor.temp_${zone}_target
+    internal: true
+    filters:
+      - lambda: return (x - 32.0) * (5.0/9.0);
       - throttle: 10s
       - heartbeat: 2min
       - debounce: 1s
     on_value:
       remote_transmitter.transmit_midea:
         code: !lambda |-
-          return {0xA4, 0x82, 0x48, 0x7F, (uint8_t)(id(target_from_ha).state - 31)};
+          return {0xA4, 0x82, 0x48, 0x7F, (uint8_t)(id(target_from_ha).state+1)};
