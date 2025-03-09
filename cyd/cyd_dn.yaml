@@ -1,0 +1,420 @@
+
+substitutions:
+  zone: dn
+  zone_friendly: "Downstairs"
+
+  zone_left: climate.midea_downstairs_bedrooms_ir
+  zone_left_title_1: "Downstairs"
+  zone_left_title_2: "Bedrooms"
+
+  zone_right: climate.midea_downstairs_kitchen_ir
+  zone_right_title_1: "Downstairs"
+  zone_right_title_2: "Kitchen"
+
+esphome:
+  name: cyd_$zone
+
+esp32:
+  board: esp32dev
+  framework:
+    version: recommended
+
+api:
+ota:
+  platform: esphome
+
+wifi:
+  fast_connect: true
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+logger:
+  baud_rate: 0
+  logs:
+    component: ERROR
+
+font:
+  - file:
+      type: local
+      path: "~/.fonts/Helvetica/Helvetica LT Condensed Medium.ttf"
+    id: font_small
+    size: 18
+    bpp: 2
+    glyphs: "!\"%()+=,-_.:°0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZÅÄÖ abcdefghijklmnopqrstuvwxyzåäö"
+  - file:
+      type: local
+      path: "~/.fonts/Helvetica/Helvetica LT Condensed Medium.ttf"
+    id: font_big
+    size: 56
+    bpp: 2
+    glyphs: "!\"%()+=,-_.:°0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZÅÄÖ abcdefghijklmnopqrstuvwxyzåäö"
+  - file:
+      type: gfonts
+      family: Material+Symbols+Outlined
+      weight: 400
+    id: icon_big
+    size: 64
+    bpp: 2
+    glyphs: [
+      "\U0000e316", # keyboard_arrow_up
+      "\U0000e313", # keyboard_arrow_down
+      "\U0000e9ba", # logout
+      ]
+  - file:
+      type: gfonts
+      family: Material+Symbols+Outlined
+      weight: 400
+    id: icon_small
+    size: 18
+    bpp: 2
+    glyphs: [
+      "\U0000ec0f", # solar_power
+      "\U0000f13b", # battery_full
+      "\U0000f8b0", # battery_75
+      "\U0000f8af", # battery_50
+      "\U0000f155", # battery_25
+      ]
+
+color:
+  - id: white
+    hex: 'FFFFFF'
+  - id: grey
+    hex: '888888'
+  - id: red
+    hex: 'FF0000'
+  - id: blue
+    hex: '0000FF'
+  - id: green
+    hex: '00FF00'
+  - id: yellow
+    hex: 'FFFF00'
+
+light:
+  - platform: monochromatic
+    output: backlight_pwm
+    id: backlight
+    restore_mode: ALWAYS_ON
+    on_turn_on:
+      then:
+        - script.execute: backlight_idle
+  - platform: rgb
+    name: RGB
+    id: led
+    red: led_red
+    green: led_green
+    blue: led_blue
+    restore_mode: ALWAYS_OFF
+
+text_sensor:
+  - platform: homeassistant
+    id: zone_left_mode
+    entity_id: ${zone_left}
+    internal: true
+  - platform: homeassistant
+    id: zone_right_mode
+    entity_id: ${zone_right}
+    internal: true
+
+sensor:
+  - platform: homeassistant
+    id: zone_left_temp_current
+    entity_id: ${zone_left}
+    attribute: current_temperature
+    internal: true
+    on_value:
+      - component.update: cyd
+  - platform: homeassistant
+    id: zone_left_temp_target
+    entity_id: ${zone_left}
+    attribute: temperature
+    internal: true
+    on_value:
+      - component.update: cyd
+  - platform: homeassistant
+    id: zone_right_temp_current
+    entity_id: ${zone_right}
+    attribute: current_temperature
+    internal: true
+    on_value:
+      - component.update: cyd
+  - platform: homeassistant
+    id: zone_right_temp_target
+    entity_id: ${zone_right}
+    attribute: temperature
+    internal: true
+    on_value:
+      - component.update: cyd
+
+binary_sensor:
+  - platform: template
+    id: zone_left_editing
+  - platform: template
+    id: zone_right_editing
+  - platform: homeassistant
+    id: house_awake
+    entity_id: input_boolean.house_awake
+    on_state:
+      then:
+        - script.execute: page_update
+  - platform: touchscreen
+    id: go_awake
+    page_id: page_asleep
+    x_min: 0
+    x_max: 320
+    y_min: 0
+    y_max: 240
+    on_press:
+      - script.execute: page_update
+      - homeassistant.action:
+          action: input_boolean.turn_on
+          data:
+            entity_id: input_boolean.house_awake
+  - platform: touchscreen
+    id: go_asleep
+    page_id: page_awake
+    x_min: 220
+    x_max: 320
+    y_min: 80
+    y_max: 240
+    on_press:
+      - script.execute: page_update
+      - homeassistant.action:
+          action: input_boolean.turn_off
+          data:
+            entity_id: input_boolean.house_awake
+  - platform: touchscreen
+    id: zone_left_up
+    page_id: page_awake
+    x_min: 0
+    x_max: 110
+    y_min: 40
+    y_max: 160
+    on_press:
+      - homeassistant.service:
+          service: climate.set_temperature
+          data:
+            entity_id: ${zone_left}
+            temperature: !lambda |-
+              auto target = id(zone_left_temp_target).state;
+              if (id(zone_left_editing).state) {
+                target += 1;
+              }
+              return target;
+      - binary_sensor.template.publish:
+          id: zone_left_editing
+          state: ON
+      - component.update: cyd
+  - platform: touchscreen
+    id: zone_left_down
+    page_id: page_awake
+    x_min: 0
+    x_max: 110
+    y_min: 160
+    y_max: 240
+    on_press:
+      - homeassistant.service:
+          service: climate.set_temperature
+          data:
+            entity_id: ${zone_left}
+            temperature: !lambda |-
+              auto target = id(zone_left_temp_target).state;
+              if (id(zone_left_editing).state) {
+                target -= 1;
+              }
+              return target;
+      - binary_sensor.template.publish:
+          id: zone_left_editing
+          state: ON
+      - component.update: cyd
+  - platform: touchscreen
+    id: zone_right_up
+    page_id: page_awake
+    x_min: 110
+    x_max: 220
+    y_min: 40
+    y_max: 160
+    on_press:
+      - homeassistant.service:
+          service: climate.set_temperature
+          data:
+            entity_id: ${zone_right}
+            temperature: !lambda |-
+              auto target = id(zone_right_temp_target).state;
+              if (id(zone_right_editing).state) {
+                target += 1;
+              }
+              return target;
+      - binary_sensor.template.publish:
+          id: zone_right_editing
+          state: ON
+      - component.update: cyd
+  - platform: touchscreen
+    id: zone_right_down
+    page_id: page_awake
+    x_min: 110
+    x_max: 220
+    y_min: 160
+    y_max: 240
+    on_press:
+      - homeassistant.service:
+          service: climate.set_temperature
+          data:
+            entity_id: ${zone_right}
+            temperature: !lambda |-
+              auto target = id(zone_right_temp_target).state;
+              if (id(zone_right_editing).state) {
+                target -= 1;
+              }
+              return target;
+      - binary_sensor.template.publish:
+          id: zone_right_editing
+          state: ON
+      - component.update: cyd
+
+spi:
+  - id: tft
+    clk_pin: GPIO14
+    mosi_pin: GPIO13
+    miso_pin: GPIO12
+  - id: touch
+    clk_pin: GPIO25
+    mosi_pin: GPIO32
+    miso_pin: GPIO39
+
+output:
+  - platform: ledc
+    pin: GPIO21
+    id: backlight_pwm
+  - platform: ledc
+    pin: GPIO4
+    id: led_red
+    inverted: true
+  - platform: ledc
+    pin: GPIO16
+    id: led_green
+    inverted: true
+  - platform: ledc
+    pin: GPIO17
+    id: led_blue
+    inverted: true
+
+display:
+  - platform: ili9xxx
+    model: ili9342
+    spi_id: tft
+    cs_pin: GPIO15
+    dc_pin: GPIO2
+    invert_colors: false
+    id: cyd
+    color_order: RGB
+    pages:
+      - id: page_asleep
+        lambda: |-
+            int x = (rand() % 160) + 80;
+            int y = (rand() % 200) + 20;
+            it.print(x, y-10, id(font_small), id(grey), TextAlign::CENTER, "House in Away Mode");
+            it.print(x, y+10, id(font_small), id(grey), TextAlign::CENTER, "Touch to Wake");
+      - id: page_awake
+        lambda: |-
+            auto zone_left_color = id(white);
+            auto zone_left_value = id(zone_left_temp_current).state;
+            if (id(zone_left_editing).state) {
+                if (id(zone_left_mode).state == "heat") {
+                    zone_left_color = id(red);
+                } else if (id(zone_left_mode).state == "cool") {
+                    zone_left_color = id(blue);
+                } else {
+                    zone_left_color = id(grey);
+                }
+                zone_left_value = id(zone_left_temp_target).state;
+            }
+
+            auto zone_right_color = id(white);
+            auto zone_right_value = id(zone_right_temp_current).state;
+            if (id(zone_right_editing).state) {
+                if (id(zone_right_mode).state == "heat") {
+                    zone_right_color = id(red);
+                } else if (id(zone_right_mode).state == "cool") {
+                    zone_right_color = id(blue);
+                } else {
+                    zone_right_color = id(grey);
+                }
+                zone_right_value = id(zone_right_temp_target).state;
+            }
+
+            it.print(15+(100/2), 5+(80/2)-10, id(font_small), id(white), TextAlign::CENTER, "${zone_left_title_1}");
+            it.print(15+(100/2), 5+(80/2)+10, id(font_small), id(white), TextAlign::CENTER, "${zone_left_title_2}");
+            it.print(15+(100/2), 80+(70-50), id(icon_big), id(red), TextAlign::CENTER, "\U0000e316");
+            it.printf(15+(100/2), 80+(70), id(font_big), zone_left_color, TextAlign::CENTER, "%.0f°", zone_left_value);
+            it.print(15+(100/2), 80+(70+55), id(icon_big), id(blue), TextAlign::CENTER, "\U0000e313");
+
+            it.print(20+100+(100/2), 5+(80/2)-10, id(font_small), id(white), TextAlign::CENTER, "${zone_right_title_1}");
+            it.print(20+100+(100/2), 5+(80/2)+10, id(font_small), id(white), TextAlign::CENTER, "${zone_right_title_2}");
+            it.print(20+100+(100/2), 80+(70-50), id(icon_big), id(red), TextAlign::CENTER, "\U0000e316");
+            it.printf(20+100+(100/2), 80+(70), id(font_big), zone_right_color, TextAlign::CENTER, "%.0f°", zone_right_value);
+            it.print(20+100+(100/2), 80+(70+55), id(icon_big), id(blue), TextAlign::CENTER, "\U0000e313");
+
+            // it.print(20+225+(0), 5+(80/2)-10, id(icon_small), id(green), TextAlign::CENTER, "\U0000ec0f");
+            // it.print(20+225+(15), 5+(80/2)-10, id(font_small), id(green), TextAlign::CENTER_LEFT, "14kW");
+            // it.print(20+225+(0), 5+(80/2)+10, id(icon_small), id(yellow), TextAlign::CENTER, "\U0000f13b");
+            // it.print(20+225+(15), 5+(80/2)+10, id(font_small), id(yellow), TextAlign::CENTER_LEFT, "100%");
+
+            it.print(20+200+(100/2), 80+(60), id(icon_big), id(white), TextAlign::CENTER, "\U0000e9ba");
+            it.print(20+200+(100/2), 80+(60+45), id(font_small), id(white), TextAlign::CENTER, "Leave");
+
+script:
+  - id: page_update
+    mode: single
+    then:
+      - if:
+          condition:
+            binary_sensor.is_on: house_awake
+          then:
+            - display.page.show: page_awake
+            - component.update: cyd
+          else:
+            - display.page.show: page_asleep
+            - component.update: cyd
+  - id: backlight_on
+    mode: single
+    then:
+      - light.turn_on:
+          id: backlight
+          brightness: 100%
+  - id: backlight_idle
+    mode: restart
+    then:
+      - delay: 5s
+      - binary_sensor.template.publish:
+          id: zone_left_editing
+          state: OFF
+      - binary_sensor.template.publish:
+          id: zone_right_editing
+          state: OFF
+      - component.update: cyd
+      - light.turn_on:
+          id: backlight
+          brightness: 50%
+
+touchscreen:
+  platform: xpt2046
+  spi_id: touch
+  cs_pin: GPIO33
+  interrupt_pin: GPIO36
+  update_interval: 50ms
+  threshold: 400
+  transform:
+    swap_xy: true
+    mirror_x: true
+    mirror_y: true
+  calibration:
+    x_min: 280
+    x_max: 3860
+    y_min: 340
+    y_max: 3860
+  on_touch:
+    then:
+      - script.execute: backlight_on
+  on_release:
+    then:
+      - script.execute: backlight_idle
