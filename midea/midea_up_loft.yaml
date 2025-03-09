@@ -49,9 +49,9 @@ sensor:
     filters:
       - lambda: return (x - 32.0) * (5.0/9.0);
       - throttle: 10s
-      - heartbeat: 2min
+      - heartbeat: 30s
       - debounce: 1s
     on_value:
       remote_transmitter.transmit_midea:
         code: !lambda |-
-          return {0xA4, 0x82, 0x48, 0x7F, (uint8_t)(id(target_from_ha).state+1)};
+          return {0xA4, 0x82, 0x48, 0x7F, (uint8_t)(id(target_from_ha).state)};
