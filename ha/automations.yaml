@@ -37,3 +37,25 @@
   - service: script.hvac_asleep
     data: {}
   mode: single
+- id: "1743562650240"
+  alias: Unoccupied Alert
+  description: ""
+  triggers:
+    - type: not_occupied
+      device_id: 4dbb2dbe197f289dc99c7f8acc30333a
+      entity_id: 2a99777c4773dfdac8c174ca9ea7617f
+      domain: binary_sensor
+      trigger: device
+      for:
+        hours: 0
+        minutes: 15
+        seconds: 0
+  conditions:
+    - condition: state
+      entity_id: input_boolean.house_awake
+      state: "on"
+  actions:
+    - action: notify.pushover
+      data:
+        message: "Carbondale UNOCCUPIED; house left awake with no motion"
+  mode: single

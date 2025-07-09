@@ -30,13 +30,21 @@ sensor:
       - sensor.tze200_a8sdabtg_ts0601_blank_loft_temperature
   - platform: template
     sensors:
-      temp_dn_beds_target:
+      temp_up_loft_target:
         unit_of_measurement: "°F"
         value_template: >-
           {% if is_state('input_boolean.house_awake', 'on') %}
-            {{ states.sensor.temp_dn_beds.state | float }}
+            {{ states.sensor.temp_up_loft.state | float }}
           {% else %}
-            {{ states.sensor.temp_dn_beds.state | float + 10 }}
+            {{ states.sensor.temp_up_loft.state | float + 10 }}
+          {% endif %}
+      temp_up_beds_target:
+        unit_of_measurement: "°F"
+        value_template: >-
+          {% if is_state('input_boolean.house_awake', 'on') %}
+            {{ float(states.sensor.temp_up_beds.state) + ((float(states.sensor.temp_up_beds.state) - float(states.climate.midea_upstairs_bedrooms_ir.attributes.temperature))*2) }}
+          {% else %}
+            {{ float(states.sensor.temp_up_beds.state) + 10 }}
           {% endif %}
       temp_dn_kitchen_target:
         unit_of_measurement: "°F"
@@ -46,21 +54,13 @@ sensor:
           {% else %}
             {{ states.sensor.temp_dn_kitchen.state | float + 10 }}
           {% endif %}
-      temp_up_beds_target:
+      temp_dn_beds_target:
         unit_of_measurement: "°F"
         value_template: >-
           {% if is_state('input_boolean.house_awake', 'on') %}
-            {{ states.sensor.temp_up_beds.state | float }}
+            {{ float(states.sensor.temp_dn_beds.state) + ((float(states.sensor.temp_dn_beds.state) - float(states.climate.midea_downstairs_bedrooms_ir.attributes.temperature))*2) }}
           {% else %}
-            {{ states.sensor.temp_up_beds.state | float + 10 }}
-          {% endif %}
-      temp_up_loft_target:
-        unit_of_measurement: "°F"
-        value_template: >-
-          {% if is_state('input_boolean.house_awake', 'on') %}
-            {{ states.sensor.temp_up_loft.state | float }}
-          {% else %}
-            {{ states.sensor.temp_up_loft.state | float + 10 }}
+            {{ float(states.sensor.temp_dn_beds.state) + 10 }}
           {% endif %}
 
 input_boolean:
