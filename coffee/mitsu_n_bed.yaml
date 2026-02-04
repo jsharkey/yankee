@@ -44,6 +44,19 @@ climate:
     name: "Mitsubishi $zone_friendly"
     update_interval: 2s
     remote_temperature_timeout: 120min
+    on_state:
+      - lambda: |-
+          auto current_f = (x.current_temperature * (9.0/5.0)) + 32.0;
+          auto target_f = (x.target_temperature * (9.0/5.0)) + 32.0;
+          auto delta_f = current_f - target_f;
+          ESP_LOGD("mitsu", "current=%f target=%f delta=%f", current_f, target_f, delta_f);
+          if (x.mode == CLIMATE_MODE_HEAT && delta_f <= -1) {
+            x.fan_mode = CLIMATE_FAN_AUTO;
+          } else if (x.mode == CLIMATE_MODE_COOL && delta_f >= 1) {
+            x.fan_mode = CLIMATE_FAN_AUTO;
+          } else {
+            x.fan_mode = CLIMATE_FAN_QUIET;
+          }
 
 sensor:
   - platform: uptime

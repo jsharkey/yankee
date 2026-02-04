@@ -46,15 +46,39 @@ climate:
     remote_temperature_timeout: 120min
     on_state:
       - lambda: |-
-          ESP_LOGD("mitsu", "current temp %f vs target temp %f", x.current_temperature, x.target_temperature);
-          if (x.mode == CLIMATE_MODE_FAN_ONLY && (x.current_temperature < x.target_temperature - 0.5)) {
-            ESP_LOGD("climate", "changing from fan to heat");
-            x.mode = CLIMATE_MODE_HEAT;
+          auto current_f = (x.current_temperature * (9.0/5.0)) + 32.0;
+          auto target_f = (x.target_temperature * (9.0/5.0)) + 32.0;
+          auto delta_f = current_f - target_f;
+          ESP_LOGD("mitsu", "current=%f target=%f delta=%f", current_f, target_f, delta_f);
+          if (x.mode == CLIMATE_MODE_FAN_ONLY && delta_f <= -1) {
+            ESP_LOGD("mitsu", "too cold; moving from fan to heat");
+            id(script_heat).execute();
+          } else if (x.mode == CLIMATE_MODE_HEAT && delta_f >= 1) {
+            ESP_LOGD("mitsu", "too hot; moving from heat to fan");
+            id(script_fan).execute();
           }
-          if (x.mode == CLIMATE_MODE_HEAT && (x.current_temperature > x.target_temperature + 0.5)) {
-            ESP_LOGD("climate", "changing from heat to fan");
-            x.mode = CLIMATE_MODE_FAN_ONLY;
-          }
+
+script:
+  - id: script_heat
+    mode: single
+    then:
+      - climate.control:
+          id: mitsu_$zone
+          mode: "OFF"
+      - delay: 5s
+      - climate.control:
+          id: mitsu_$zone
+          mode: "HEAT"
+  - id: script_fan
+    mode: single
+    then:
+      - climate.control:
+          id: mitsu_$zone
+          mode: "OFF"
+      - delay: 5s
+      - climate.control:
+          id: mitsu_$zone
+          mode: "FAN_ONLY"
 
 sensor:
   - platform: uptime
