@@ -157,6 +157,7 @@ time:
       - seconds: 0
         minutes: 0
         hours: 17
+        days_of_week: MON-FRI
         then:
           - script.execute: script_on_peak
       - seconds: 0
