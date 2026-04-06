@@ -1,0 +1,144 @@
+
+# https://devices.esphome.io/devices/esp32e-relay-x8/
+
+# relays: https://m.media-amazon.com/images/I/81af-xS2v1L._AC_SL1500_.jpg
+# pressure: https://m.media-amazon.com/images/I/618fxPGaNnL._SL1500_.jpg
+# solenoid: https://m.media-amazon.com/images/I/71pLl1xNoeL._AC_SL1100_.jpg
+# ball valve: https://m.media-amazon.com/images/I/81ng3ii2KiL._AC_SL1500_.jpg
+
+# RY1 = GPIO32, COM=red1, NO=24VAC
+# RY2 = GPIO33, COM=yellow1, NO=24VAC
+# RY3 = GPIO25, COM=green1, NO=24VAC
+# RY4 = GPIO26, COM=blue1, NO=24VAC
+# RY5 = GPIO27
+# RY6 = GPIO14, COM=blue2, NC=GND, NO=12VDC
+# RY7 = GPIO12, COM=red3, NC=GND, NO=12VDC
+# RY8 = GPIO13, COM=black3, NC=GND, NO=12VDC
+
+# GND = yellow2
+# GPIO34 = pressure input
+# other colors = 5VDC, GND
+
+# GPIO16 = sense open, green wire
+# GPIO17 = sense closed, yellow wire
+# GND = common, white wire
+
+esphome:
+  name: sprinkler
+
+esp32:
+  variant: esp32
+  framework:
+    version: recommended
+
+status_led:
+  pin:
+    number: 23
+
+api:
+ota:
+  platform: esphome
+
+wifi:
+  fast_connect: true
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+logger:
+  baud_rate: 0
+
+sensor:
+  - platform: adc
+    id: pressure
+    name: "Water Pressure"
+    pin: GPIO34
+    update_interval: 15s
+    unit_of_measurement: "PSI"
+    accuracy_decimals: 2
+    attenuation: auto
+    filters:
+      - calibrate_linear:
+        - 0.5 -> 0.0
+        - 2.5 -> 100.0
+
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: GPIO16
+      mode:
+        input: true
+        pullup: true
+    id: valve_open
+    name: "Main Valve Open"
+  - platform: gpio
+    pin:
+      number: GPIO17
+      mode:
+        input: true
+        pullup: true
+    id: valve_closed
+    name: "Main Valve Closed"
+
+switch:
+  - platform: gpio
+    pin: GPIO32
+    id: relay_zone1
+    name: "Zone 1: Lower Front Yard"
+    restore_mode: ALWAYS_OFF
+  - platform: gpio
+    pin: GPIO33
+    id: relay_zone2
+    name: "Zone 2: Upper Front Yard"
+    restore_mode: ALWAYS_OFF
+  - platform: gpio
+    pin: GPIO25
+    id: relay_zone3
+    name: "Zone 3: Lower East Yard"
+    restore_mode: ALWAYS_OFF
+  - platform: gpio
+    pin: GPIO26
+    id: relay_zone4
+    name: "Zone 4: Upper East Yard"
+    restore_mode: ALWAYS_OFF
+  - platform: gpio
+    pin: GPIO14
+    id: relay_drain
+    name: "Drain Valve"
+    restore_mode: ALWAYS_OFF
+  - platform: gpio
+    pin: GPIO12
+    id: relay_red
+    restore_mode: ALWAYS_OFF
+    on_turn_on:
+    - script.execute: relay_red_timeout
+  - platform: gpio
+    pin: GPIO13
+    id: relay_black
+    restore_mode: ALWAYS_OFF
+    on_turn_on:
+    - script.execute: relay_black_timeout
+  - platform: template
+    id: switch_pump
+    name: "Main Valve"
+    restore_mode: ALWAYS_OFF
+    optimistic: true
+    turn_on_action:
+      - switch.turn_off: relay_drain
+      - switch.turn_off: relay_black
+      - switch.turn_on: relay_red
+    turn_off_action:
+      - switch.turn_off: relay_drain
+      - switch.turn_off: relay_red
+      - switch.turn_on: relay_black
+
+script:
+  - id: relay_red_timeout
+    mode: restart
+    then:
+      - delay: 10s
+      - switch.turn_off: relay_red
+  - id: relay_black_timeout
+    mode: restart
+    then:
+      - delay: 10s
+      - switch.turn_off: relay_black
