@@ -1,0 +1,54 @@
+
+esphome:
+  name: well
+
+esp8266:
+  board: esp01_1m
+  framework:
+    version: recommended
+
+api:
+ota:
+  platform: esphome
+
+wifi:
+  fast_connect: true
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+logger:
+  baud_rate: 0
+
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: GPIO13
+    id: button
+    on_press:
+     - switch.toggle: relay1
+
+switch:
+  - platform: gpio
+    name: "Well Power"
+    pin: GPIO15
+    id: relay1
+    icon: "mdi:water-well"
+
+output:
+  - platform: gpio
+    id: blue_led
+    pin: GPIO02
+    inverted: true
+
+interval:
+  - interval: 1s
+    then:
+     if:
+       condition:
+         wifi.connected:
+       then:
+         - output.turn_on: blue_led
+       else:  #blinks if wi-fi isn't connected
+         - output.turn_on: blue_led
+         - delay: 500ms
+         - output.turn_off: blue_led
