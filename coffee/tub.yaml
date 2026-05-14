@@ -134,14 +134,14 @@ script:
     then:
       lambda: |-
         auto call = id(tub_climate).make_call();
-        call.set_target_temperature(28);
+        call.set_target_temperature(32);
         call.perform();
   - id: script_off_peak
     mode: queued
     then:
       lambda: |-
         auto call = id(tub_climate).make_call();
-        call.set_target_temperature(35);
+        call.set_target_temperature(38);
         call.perform();
 
 time:
