@@ -70,6 +70,8 @@ binary_sensor:
         pullup: true
     id: valve_open
     name: "Main Valve Open"
+    filters:
+      - delayed_on_off: 2s
   - platform: gpio
     pin:
       number: GPIO17
@@ -78,6 +80,8 @@ binary_sensor:
         pullup: true
     id: valve_closed
     name: "Main Valve Closed"
+    filters:
+      - delayed_on_off: 2s
 
 switch:
   - platform: gpio
@@ -105,6 +109,8 @@ switch:
     id: relay_drain
     name: "Drain Valve"
     restore_mode: ALWAYS_OFF
+    on_turn_on:
+    - script.execute: relay_drain_timeout
   - platform: gpio
     pin: GPIO12
     id: relay_red
@@ -132,6 +138,11 @@ switch:
       - switch.turn_on: relay_black
 
 script:
+  - id: relay_drain_timeout
+    mode: restart
+    then:
+      - delay: 10m
+      - switch.turn_off: relay_drain
   - id: relay_red_timeout
     mode: restart
     then:
