@@ -141,7 +141,7 @@ script:
   - id: relay_drain_timeout
     mode: restart
     then:
-      - delay: 10m
+      - delay: 10min
       - switch.turn_off: relay_drain
   - id: relay_red_timeout
     mode: restart
