@@ -126,22 +126,31 @@ script:
     mode: queued
     then:
       lambda: |-
+        auto target_f = id(temp_pre_peak).state;
+        auto target_c = ((target_f - 32) * 5) / 9;
+        ESP_LOGE("tub", "Setting temp to %dC %dF", (int)target_c, (int)target_f);
         auto call = id(tub_climate).make_call();
-        call.set_target_temperature(38);
+        call.set_target_temperature(target_c);
         call.perform();
   - id: script_on_peak
     mode: queued
     then:
       lambda: |-
+        auto target_f = id(temp_on_peak).state;
+        auto target_c = ((target_f - 32) * 5) / 9;
+        ESP_LOGE("tub", "Setting temp to %dC %dF", (int)target_c, (int)target_f);
         auto call = id(tub_climate).make_call();
-        call.set_target_temperature(32);
+        call.set_target_temperature(target_c);
         call.perform();
   - id: script_off_peak
     mode: queued
     then:
       lambda: |-
+        auto target_f = id(temp_off_peak).state;
+        auto target_c = ((target_f - 32) * 5) / 9;
+        ESP_LOGE("tub", "Setting temp to %dC %dF", (int)target_c, (int)target_f);
         auto call = id(tub_climate).make_call();
-        call.set_target_temperature(38);
+        call.set_target_temperature(target_c);
         call.perform();
 
 time:
@@ -152,6 +161,7 @@ time:
       - seconds: 0
         minutes: 0
         hours: 12
+        days_of_week: MON-FRI
         then:
           - script.execute: script_pre_peak
       - seconds: 0
@@ -165,3 +175,61 @@ time:
         hours: 21
         then:
           - script.execute: script_off_peak
+
+number:
+  - platform: template
+    name: "Temperature Pre-Peak (12-5PM)"
+    id: temp_pre_peak
+    icon: "mdi:thermometer"
+    min_value: 60
+    max_value: 110
+    initial_value: 100
+    step: 1
+    unit_of_measurement: "°F"
+    mode: slider
+    optimistic: true
+    restore_value: true
+  - platform: template
+    name: "Temperature On-Peak (5-9PM)"
+    id: temp_on_peak
+    icon: "mdi:thermometer"
+    min_value: 60
+    max_value: 110
+    initial_value: 80
+    step: 1
+    unit_of_measurement: "°F"
+    mode: slider
+    optimistic: true
+    restore_value: true
+  - platform: template
+    name: "Temperature Off-Peak"
+    id: temp_off_peak
+    icon: "mdi:thermometer"
+    min_value: 60
+    max_value: 110
+    initial_value: 100
+    step: 1
+    unit_of_measurement: "°F"
+    mode: slider
+    optimistic: true
+    restore_value: true
+
+button:
+  - platform: template
+    name: "Trigger Pre-Peak"
+    icon: "mdi:play-toggle"
+    on_press:
+      then:
+        - script.execute: script_pre_peak
+  - platform: template
+    name: "Trigger On-Peak"
+    icon: "mdi:play-toggle"
+    on_press:
+      then:
+        - script.execute: script_on_peak
+  - platform: template
+    name: "Trigger Off-Peak"
+    icon: "mdi:play-toggle"
+    on_press:
+      then:
+        - script.execute: script_off_peak
