@@ -144,6 +144,18 @@ sensor:
     internal: true
     on_value:
       - component.update: cyd
+  - platform: homeassistant
+    id: pv_power
+    entity_id: sensor.18kpv_pv_power
+    internal: true
+    on_value:
+      - component.update: cyd
+  - platform: homeassistant
+    id: battery_soc
+    entity_id: sensor.18kpv_battery_soc
+    internal: true
+    on_value:
+      - component.update: cyd
 
 binary_sensor:
   - platform: template
@@ -153,6 +165,7 @@ binary_sensor:
   - platform: homeassistant
     id: house_awake
     entity_id: input_boolean.house_awake
+    trigger_on_initial_state: true
     on_state:
       then:
         - script.execute: page_update
@@ -306,6 +319,7 @@ display:
     dc_pin: GPIO2
     invert_colors: false
     id: cyd
+    color_palette: 8BIT
     color_order: RGB
     pages:
       - id: page_asleep
@@ -324,7 +338,7 @@ display:
                 } else if (id(zone_left_mode).state == "cool") {
                     zone_left_color = id(blue);
                 } else {
-                    zone_left_color = id(grey);
+                    zone_left_color = id(yellow);
                 }
                 zone_left_value = id(zone_left_temp_target).state;
             }
@@ -337,7 +351,7 @@ display:
                 } else if (id(zone_right_mode).state == "cool") {
                     zone_right_color = id(blue);
                 } else {
-                    zone_right_color = id(grey);
+                    zone_right_color = id(yellow);
                 }
                 zone_right_value = id(zone_right_temp_target).state;
             }
@@ -354,10 +368,38 @@ display:
             it.printf(20+100+(100/2), 80+(70), id(font_big), zone_right_color, TextAlign::CENTER, "%.0f°", zone_right_value);
             it.print(20+100+(100/2), 80+(70+55), id(icon_big), id(blue), TextAlign::CENTER, "\U0000e313");
 
-            // it.print(20+225+(0), 5+(80/2)-10, id(icon_small), id(green), TextAlign::CENTER, "\U0000ec0f");
-            // it.print(20+225+(15), 5+(80/2)-10, id(font_small), id(green), TextAlign::CENTER_LEFT, "14kW");
-            // it.print(20+225+(0), 5+(80/2)+10, id(icon_small), id(yellow), TextAlign::CENTER, "\U0000f13b");
-            // it.print(20+225+(15), 5+(80/2)+10, id(font_small), id(yellow), TextAlign::CENTER_LEFT, "100%");
+            auto pv_power_value = ((float) id(pv_power).state) / 1000;
+            auto pv_power_color = id(white);
+            if (pv_power_value >= 6) {
+                pv_power_color = id(green);
+            } else if (pv_power_value > 0) {
+                pv_power_color = id(yellow);
+            }
+            if (pv_power_value > 0) {
+                it.print(20+225+(0), 5+(80/2)-10, id(icon_small), pv_power_color, TextAlign::CENTER, "\U0000ec0f");
+                it.printf(20+225+(15), 5+(80/2)-10, id(font_small), pv_power_color, TextAlign::CENTER_LEFT, "%.0fkW", pv_power_value);
+            }
+
+            auto battery_soc_value = id(battery_soc).state;
+            auto battery_soc_color = id(white);
+            auto battery_soc_glyph = "";
+            if (battery_soc_value >= 100) {
+                battery_soc_color = id(green);
+                battery_soc_glyph = "\U0000f13b";
+            } else if (battery_soc_value > 75) {
+                battery_soc_color = id(green);
+                battery_soc_glyph = "\U0000f8b0";
+            } else if (battery_soc_value > 25) {
+                battery_soc_color = id(yellow);
+                battery_soc_glyph = "\U0000f8af";
+            } else if (battery_soc_value > 0) {
+                battery_soc_color = id(red);
+                battery_soc_glyph = "\U0000f155";
+            }
+            if (battery_soc_value > 0) {
+                it.print(20+225+(0), 5+(80/2)+10, id(icon_small), battery_soc_color, TextAlign::CENTER, battery_soc_glyph);
+                it.printf(20+225+(15), 5+(80/2)+10, id(font_small), battery_soc_color, TextAlign::CENTER_LEFT, "%.0f%%", battery_soc_value);
+            }
 
             it.print(20+200+(100/2), 80+(60), id(icon_big), id(white), TextAlign::CENTER, "\U0000e9ba");
             it.print(20+200+(100/2), 80+(60+45), id(font_small), id(white), TextAlign::CENTER, "Leave");
