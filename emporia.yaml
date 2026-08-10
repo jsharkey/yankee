@@ -75,7 +75,7 @@ substitutions:
   cir_8: "Water Heater"
   cir_9: "Well"
   cir_10: "Range"
-  cir_11: "Heatpump Basement"
+  cir_11: "Heat Pump Basement"
   cir_12: "Boiler"
   cir_13: "Microwave"
   cir_14: "Washer"
@@ -102,6 +102,9 @@ substitutions:
   - &abs
     # take the absolute value of the value
     lambda: 'return abs(x);'
+  - &ignoreled
+    # ignore small led usage
+    lambda: 'return ((x < 5.0f) ? 0.0f : x);'
 
 sensor:
   - platform: emporia_vue
@@ -137,30 +140,28 @@ sensor:
         power:
           id: phase_a_power
           device_class: power
-          filters: [*pos]
       - phase_id: phase_b
         input: "B"
         power:
           id: phase_b_power
           device_class: power
-          filters: [*pos]
       # Pay close attention to set the `phase_id` for each breaker by matching it to the phase/leg it connects to in the panel
-      - { phase_id: phase_a, input:  "1", power: { id:  cir1, filters: [ *neg, multiply: 2 ] } }
-      - { phase_id: phase_a, input:  "2", power: { id:  cir2, filters: [ *neg, multiply: 2 ] } }
-      - { phase_id: phase_a, input:  "3", power: { id:  cir3, filters: [ *neg, multiply: 2 ] } }
-      - { phase_id: phase_a, input:  "4", power: { id:  cir4, filters: [ *neg, multiply: 2 ] } }
-      - { phase_id: phase_a, input:  "5", power: { id:  cir5, filters: [ *neg, multiply: 2 ] } }
-      - { phase_id: phase_a, input:  "6", power: { id:  cir6, filters: [ *neg, multiply: 2 ] } }
-      - { phase_id: phase_a, input:  "7", power: { id:  cir7, filters: [ *neg ] } }
-      - { phase_id: phase_a, input:  "8", power: { id:  cir8, filters: [ *neg, multiply: 2 ] } }
-      - { phase_id: phase_a, input:  "9", power: { id:  cir9, filters: [ *neg, multiply: 2 ] } }
-      - { phase_id: phase_a, input: "10", power: { id: cir10, filters: [ *neg, multiply: 2 ] } }
-      - { phase_id: phase_a, input: "11", power: { id: cir11, filters: [ *neg, multiply: 2 ] } }
-      - { phase_id: phase_b, input: "12", power: { id: cir12, filters: [ *neg ] } }
-      - { phase_id: phase_a, input: "13", power: { id: cir13, filters: [ *neg ] } }
-      - { phase_id: phase_a, input: "14", power: { id: cir14, filters: [ *neg ] } }
-      - { phase_id: phase_b, input: "15", power: { id: cir15, filters: [ *neg ] } }
-      - { phase_id: phase_a, input: "16", power: { id: cir16, filters: [ *neg ] } }
+      - { phase_id: phase_a, input:  "1", power: { id:  cir1, filters: [ *abs, multiply: 2 ] } }
+      - { phase_id: phase_a, input:  "2", power: { id:  cir2, filters: [ *abs, multiply: 2 ] } }
+      - { phase_id: phase_a, input:  "3", power: { id:  cir3, filters: [ *abs, multiply: 2 ] } }
+      - { phase_id: phase_a, input:  "4", power: { id:  cir4, filters: [ *abs, multiply: 2 ] } }
+      - { phase_id: phase_a, input:  "5", power: { id:  cir5, filters: [ *abs, multiply: 2 ] } }
+      - { phase_id: phase_a, input:  "6", power: { id:  cir6, filters: [ *abs, multiply: 2 ] } }
+      - { phase_id: phase_a, input:  "7", power: { id:  cir7, filters: [ *abs ] } }
+      - { phase_id: phase_a, input:  "8", power: { id:  cir8, filters: [ *abs, multiply: 2 ] } }
+      - { phase_id: phase_a, input:  "9", power: { id:  cir9, filters: [ *abs, *ignoreled, multiply: 2 ] } }
+      - { phase_id: phase_a, input: "10", power: { id: cir10, filters: [ *abs, multiply: 2 ] } }
+      - { phase_id: phase_a, input: "11", power: { id: cir11, filters: [ *abs, multiply: 2 ] } }
+      - { phase_id: phase_b, input: "12", power: { id: cir12, filters: [ *abs ] } }
+      - { phase_id: phase_a, input: "13", power: { id: cir13, filters: [ *abs ] } }
+      - { phase_id: phase_a, input: "14", power: { id: cir14, filters: [ *abs ] } }
+      - { phase_id: phase_b, input: "15", power: { id: cir15, filters: [ *abs ] } }
+      - { phase_id: phase_a, input: "16", power: { id: cir16, filters: [ *abs ] } }
     on_update:
       then:
         - component.update: total_power
