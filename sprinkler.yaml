@@ -10,7 +10,7 @@
 # RY2 = GPIO33, COM=yellow1, NO=24VAC
 # RY3 = GPIO25, COM=green1, NO=24VAC
 # RY4 = GPIO26, COM=blue1, NO=24VAC
-# RY5 = GPIO27
+# RY5 = GPIO27, COM=?, NC=GND, NO=12VDC
 # RY6 = GPIO14, COM=blue2, NC=GND, NO=12VDC
 # RY7 = GPIO12, COM=red3, NC=GND, NO=12VDC
 # RY8 = GPIO13, COM=black3, NC=GND, NO=12VDC
@@ -77,7 +77,7 @@ binary_sensor:
       - delayed_on_off: 2s
   - platform: gpio
     pin:
-      number: GPIO17
+      number: GPIO18
       mode:
         input: true
         pullup: true
@@ -108,12 +108,19 @@ switch:
     name: "Zone 4: Upper East Yard"
     restore_mode: ALWAYS_OFF
   - platform: gpio
-    pin: GPIO14
-    id: relay_drain
-    name: "Drain Valve"
+    pin: GPIO27
+    id: relay_filter
+    name: "Filter Valve"
     restore_mode: ALWAYS_OFF
     on_turn_on:
-    - script.execute: relay_drain_timeout
+    - script.execute: relay_filter_timeout
+  - platform: gpio
+    pin: GPIO14
+    id: relay_compressor
+    name: "Compressor Valve"
+    restore_mode: ALWAYS_OFF
+    on_turn_on:
+    - script.execute: relay_compressor_timeout
   - platform: gpio
     pin: GPIO12
     id: relay_red
@@ -132,20 +139,25 @@ switch:
     restore_mode: ALWAYS_OFF
     optimistic: true
     turn_on_action:
-      - switch.turn_off: relay_drain
+      - switch.turn_off: relay_compressor
       - switch.turn_off: relay_black
       - switch.turn_on: relay_red
     turn_off_action:
-      - switch.turn_off: relay_drain
+      - switch.turn_off: relay_compressor
       - switch.turn_off: relay_red
       - switch.turn_on: relay_black
 
 script:
-  - id: relay_drain_timeout
+  - id: relay_filter_timeout
+    mode: restart
+    then:
+      - delay: 1min
+      - switch.turn_off: relay_filter
+  - id: relay_compressor_timeout
     mode: restart
     then:
       - delay: 10min
-      - switch.turn_off: relay_drain
+      - switch.turn_off: relay_compressor
   - id: relay_red_timeout
     mode: restart
     then:
