@@ -39,11 +39,11 @@ switch:
     pin: GPIO4
     id: relay_normal
   - platform: template
-    id: switch_vacation
-    name: Water Heater Vacation
-    icon: mdi:water-boiler-off
+    id: switch_power
+    name: Water Heater Power
+    icon: mdi:water-boiler
     optimistic: true
-    restore_mode: RESTORE_DEFAULT_ON
+    restore_mode: RESTORE_DEFAULT_OFF
     on_turn_on:
       - script.execute: script_apply
     on_turn_off:
@@ -55,7 +55,7 @@ script:
     then:
       if:
         condition:
-          switch.is_on: switch_vacation
+          switch.is_off: switch_power
         then:
           - switch.turn_on: relay_normal
           - delay: 0.5s
