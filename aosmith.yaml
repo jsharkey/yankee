@@ -76,9 +76,10 @@ script:
 
 time:
   - platform: sntp
+    timezone: "America/Denver"
     on_time:
       - seconds: 0
         minutes: 0
-        hours: 12
+        hours: 6
         then:
           - script.execute: script_apply
