@@ -15,6 +15,7 @@ esphome:
   name: aosmith
   on_boot:
     then:
+      - logger.log: "Applying from boot"
       - script.execute: script_apply
 
 esp8266:
@@ -38,10 +39,10 @@ logger:
 
 switch:
   - platform: gpio
-    pin: GPIO5
+    pin: GPIO4
     id: relay_vacation
   - platform: gpio
-    pin: GPIO4
+    pin: GPIO5
     id: relay_normal
   - platform: template
     id: switch_power
@@ -50,8 +51,10 @@ switch:
     optimistic: true
     restore_mode: RESTORE_DEFAULT_OFF
     on_turn_on:
+      - logger.log: "Applying from remote on"
       - script.execute: script_apply
     on_turn_off:
+      - logger.log: "Applying from remote off"
       - script.execute: script_apply
 
 script:
@@ -62,6 +65,7 @@ script:
         condition:
           switch.is_off: switch_power
         then:
+          - logger.log: "Applying power OFF"
           - switch.turn_on: relay_normal
           - delay: 0.5s
           - switch.turn_off: relay_normal
@@ -70,6 +74,7 @@ script:
           - delay: 0.5s
           - switch.turn_off: relay_vacation
         else:
+          - logger.log: "Applying power ON"
           - switch.turn_on: relay_normal
           - delay: 0.5s
           - switch.turn_off: relay_normal
@@ -77,9 +82,11 @@ script:
 time:
   - platform: sntp
     timezone: "America/Denver"
+    update_interval: 6h
     on_time:
       - seconds: 0
         minutes: 0
         hours: 6
         then:
+          - logger.log: "Applying from time"
           - script.execute: script_apply
