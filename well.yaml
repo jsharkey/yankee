@@ -8,6 +8,8 @@ esp8266:
     version: recommended
 
 api:
+  reboot_timeout: 3h
+
 ota:
   platform: esphome
 
