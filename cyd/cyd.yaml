@@ -68,6 +68,8 @@ color:
     hex: 'FFFFFF'
   - id: grey
     hex: '888888'
+  - id: dark_red
+    hex: '220000'
   - id: red
     hex: 'FF0000'
   - id: blue
@@ -167,6 +169,13 @@ binary_sensor:
   - platform: homeassistant
     id: house_awake
     entity_id: input_boolean.house_awake
+    trigger_on_initial_state: true
+    on_state:
+      then:
+        - script.execute: page_update
+  - platform: homeassistant
+    id: electrical_grid_online
+    entity_id: input_boolean.electrical_grid_online
     trigger_on_initial_state: true
     on_state:
       then:
@@ -358,6 +367,16 @@ display:
             }
       - id: page_awake
         lambda: |-
+            if (!id(electrical_grid_online)) {
+                auto hash = id(dark_red);
+                for (uint16_t i = 0; i < 320; i++) {
+                    if ((i / 10) % 2 == 0) {
+                        it.line(0, i, 240, i+240, hash);
+                        it.line(i+10, 0, i+250, 240, hash);
+                    }
+                }
+            }
+
             auto zone_left_color = id(white);
             auto zone_left_value = id(zone_left_temp_current).state;
             if (id(zone_left_editing).state) {
