@@ -2,7 +2,7 @@
 substitutions:
   zone: aframe
   zone_friendly: "Cabin"
-  zone_leave_hidden: 'true'
+  zone_leave_hidden: false
 
   zone_left: climate.mitsu_n_bed_mitsubishi_north_bedroom
   zone_left_title: "Cabin"

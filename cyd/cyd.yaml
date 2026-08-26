@@ -186,17 +186,39 @@ sensor:
     entity_id: sensor.18kpv_pv_power
     internal: true
     on_value:
-      - component.update: cyd
-      # TODO: text_solar
-      # text: "\U0000ec0f 10kW"
+      - lvgl.label.update:
+          id: text_solar
+          text: !lambda |-
+            static char buf[32];
+            snprintf(buf, sizeof(buf), "\U0000ec0f %.0fkW", ((float) id(pv_power).state) / 1000);
+            return buf;
+          text_color: !lambda |-
+            if (id(pv_power).state > 6000) return lv_color_hex(0x00FF00);
+            if (id(pv_power).state > 0) return lv_color_hex(0xFFFF00);
+            return lv_color_hex(0x888888);
   - platform: homeassistant
     id: battery_soc
     entity_id: sensor.18kpv_battery_soc
     internal: true
     on_value:
-      - component.update: cyd
-      # TODO: text_battery
-      # text: "\U0000f8b0 50%"
+      - lvgl.label.update:
+          id: text_battery
+          text: !lambda |-
+            static char buf[32];
+            if (id(battery_soc).state >= 100) {
+                snprintf(buf, sizeof(buf), "\U0000f13b %.0f%%", id(battery_soc).state);
+            } else if (id(battery_soc).state > 75) {
+                snprintf(buf, sizeof(buf), "\U0000f8b0 %.0f%%", id(battery_soc).state);
+            } else if (id(battery_soc).state > 25) {
+                snprintf(buf, sizeof(buf), "\U0000f8af %.0f%%", id(battery_soc).state);
+            } else {
+                snprintf(buf, sizeof(buf), "\U0000f155 %.0f%%", id(battery_soc).state);
+            }
+            return buf;
+          text_color: !lambda |-
+            if (id(battery_soc).state > 75) return lv_color_hex(0x00FF00);
+            if (id(battery_soc).state > 25) return lv_color_hex(0xFFFF00);
+            return lv_color_hex(0xFF0000);
 
 binary_sensor:
   - platform: homeassistant
@@ -486,6 +508,12 @@ lvgl:
                         text: "\U0000e316"
                         text_font: icon_big
                         text_color: 0xFF0000
+                  on_click:
+                    - homeassistant.service:
+                        service: climate.set_temperature
+                        data:
+                          entity_id: ${zone_left}
+                          temperature: !lambda "return id(zone_left_target).state + 1;"
                   on_long_press:
                     - homeassistant.service:
                         service: climate.set_hvac_mode
@@ -508,6 +536,12 @@ lvgl:
                         text: "\U0000e313"
                         text_font: icon_big
                         text_color: 0x0000FF
+                  on_click:
+                    - homeassistant.service:
+                        service: climate.set_temperature
+                        data:
+                          entity_id: ${zone_left}
+                          temperature: !lambda "return id(zone_left_target).state - 1;"
                   on_long_press:
                     - homeassistant.service:
                         service: climate.set_hvac_mode
@@ -536,13 +570,11 @@ lvgl:
                   widgets:
                     - label:
                         id: text_solar
-                        hidden: true
                         text_font: font_small
                         text_color: white
                         text_align: CENTER
                     - label:
                         id: text_battery
-                        hidden: true
                         text_font: font_small
                         text_color: white
                         text_align: CENTER
