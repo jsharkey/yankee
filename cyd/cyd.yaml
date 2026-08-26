@@ -95,52 +95,108 @@ text_sensor:
     id: zone_left_mode
     entity_id: ${zone_left}
     internal: true
+    on_value:
+      - if:
+          condition:
+            text_sensor.state:
+              id: zone_left_mode
+              state: "off"
+          then:
+            - lvgl.widget.show: button_left_power
+            - lvgl.widget.hide: text_left_target
+            - lvgl.widget.hide: button_left_warmer
+            - lvgl.widget.hide: button_left_cooler
+          else:
+            - lvgl.widget.hide: button_left_power
+            - lvgl.widget.show: text_left_target
+            - lvgl.widget.show: button_left_warmer
+            - lvgl.widget.show: button_left_cooler
   - platform: homeassistant
     id: zone_right_mode
     entity_id: ${zone_right}
     internal: true
+    on_value:
+      - if:
+          condition:
+            text_sensor.state:
+              id: zone_right_mode
+              state: "off"
+          then:
+            - lvgl.widget.show: button_right_power
+            - lvgl.widget.hide: text_right_target
+            - lvgl.widget.hide: button_right_warmer
+            - lvgl.widget.hide: button_right_cooler
+          else:
+            - lvgl.widget.hide: button_right_power
+            - lvgl.widget.show: text_right_target
+            - lvgl.widget.show: button_right_warmer
+            - lvgl.widget.show: button_right_cooler
 
 sensor:
   - platform: homeassistant
-    id: zone_left_temp_current
+    id: zone_left_current
     entity_id: ${zone_left}
     attribute: current_temperature
     internal: true
     on_value:
-      - component.update: cyd
+      - lvgl.label.update:
+          id: text_left_current
+          text: !lambda |-
+            static char buf[32];
+            snprintf(buf, sizeof(buf), "\U0000e846 %.0f°", id(zone_left_current).state);
+            return buf;
   - platform: homeassistant
-    id: zone_left_temp_target
+    id: zone_left_target
     entity_id: ${zone_left}
     attribute: temperature
     internal: true
     on_value:
-      - component.update: cyd
+      - lvgl.label.update:
+          id: text_left_target
+          text: !lambda |-
+            static char buf[32];
+            snprintf(buf, sizeof(buf), "%.0f°", id(zone_left_target).state);
+            return buf;
   - platform: homeassistant
-    id: zone_right_temp_current
+    id: zone_right_current
     entity_id: ${zone_right}
     attribute: current_temperature
     internal: true
     on_value:
-      - component.update: cyd
+      - lvgl.label.update:
+          id: text_right_current
+          text: !lambda |-
+            static char buf[32];
+            snprintf(buf, sizeof(buf), "\U0000e846 %.0f°", id(zone_right_current).state);
+            return buf;
   - platform: homeassistant
-    id: zone_right_temp_target
+    id: zone_right_target
     entity_id: ${zone_right}
     attribute: temperature
     internal: true
     on_value:
-      - component.update: cyd
+      - lvgl.label.update:
+          id: text_right_target
+          text: !lambda |-
+            static char buf[32];
+            snprintf(buf, sizeof(buf), "%.0f°", id(zone_right_target).state);
+            return buf;
   - platform: homeassistant
     id: pv_power
     entity_id: sensor.18kpv_pv_power
     internal: true
     on_value:
       - component.update: cyd
+      # TODO: text_solar
+      # text: "\U0000ec0f 10kW"
   - platform: homeassistant
     id: battery_soc
     entity_id: sensor.18kpv_battery_soc
     internal: true
     on_value:
       - component.update: cyd
+      # TODO: text_battery
+      # text: "\U0000f8b0 50%"
 
 binary_sensor:
   - platform: homeassistant
@@ -156,7 +212,13 @@ binary_sensor:
     trigger_on_initial_state: true
     on_state:
       then:
-        - script.execute: page_update
+        - if:
+            condition:
+              binary_sensor.is_on: electrical_grid_online
+            then:
+              - lvgl.widget.hide: text_grid
+            else:
+              - lvgl.widget.show: text_grid
 
 spi:
   - id: tft
@@ -266,19 +328,34 @@ lvgl:
                     pad_column: 0
                   widgets:
                     - label:
+                        id: button_left_power
                         pad_top: -10
                         pad_bottom: -5
                         text: "\U0000f16f"
                         text_font: font_big
                         text_color: white
                         text_align: CENTER
+                        on_click:
+                          - homeassistant.service:
+                              service: climate.set_hvac_mode
+                              data:
+                                entity_id: ${zone_left}
+                                hvac_mode: "heat_cool"
                     - label:
-                        text: "\U0000e846 72°"
+                        id: text_left_target
+                        hidden: true
+                        pad_top: -10
+                        pad_bottom: -5
+                        text_font: font_big
+                        text_color: white
+                        text_align: CENTER
+                    - label:
+                        id: text_left_current
                         text_font: font_small
                         text_color: grey
                         text_align: CENTER
               - button:
-                  id: zone_left_warmer
+                  id: button_left_warmer
                   grid_cell_column_pos: 0
                   grid_cell_column_span: ${zone_left_span}
                   grid_cell_row_pos: 1
@@ -299,9 +376,15 @@ lvgl:
                         service: climate.set_temperature
                         data:
                           entity_id: ${zone_left}
-                          temperature: !lambda "return id(zone_left_temp_target).state + 1;"
+                          temperature: !lambda "return id(zone_left_target).state + 1;"
+                  on_long_press:
+                    - homeassistant.service:
+                        service: climate.set_hvac_mode
+                        data:
+                          entity_id: ${zone_left}
+                          hvac_mode: "off"
               - button:
-                  id: zone_left_cooler
+                  id: button_left_cooler
                   grid_cell_column_pos: 0
                   grid_cell_column_span: ${zone_left_span}
                   grid_cell_row_pos: 2
@@ -322,7 +405,13 @@ lvgl:
                         service: climate.set_temperature
                         data:
                           entity_id: ${zone_left}
-                          temperature: !lambda "return id(zone_left_temp_target).state - 1;"
+                          temperature: !lambda "return id(zone_left_target).state - 1;"
+                  on_long_press:
+                    - homeassistant.service:
+                        service: climate.set_hvac_mode
+                        data:
+                          entity_id: ${zone_left}
+                          hvac_mode: "off"
               - label:
                   grid_cell_column_pos: 1
                   grid_cell_row_pos: 0
@@ -355,19 +444,34 @@ lvgl:
                     pad_column: 0
                   widgets:
                     - label:
+                        id: button_right_power
                         pad_top: -10
                         pad_bottom: -5
-                        text: "72°"
+                        text: "\U0000f16f"
+                        text_font: font_big
+                        text_color: white
+                        text_align: CENTER
+                        on_click:
+                          - homeassistant.service:
+                              service: climate.set_hvac_mode
+                              data:
+                                entity_id: ${zone_right}
+                                hvac_mode: "heat_cool"
+                    - label:
+                        id: text_right_target
+                        hidden: true
+                        pad_top: -10
+                        pad_bottom: -5
                         text_font: font_big
                         text_color: white
                         text_align: CENTER
                     - label:
-                        text: "\U0000e846 72°"
+                        id: text_right_current
                         text_font: font_small
                         text_color: grey
                         text_align: CENTER
               - button:
-                  id: zone_right_warmer
+                  id: button_right_warmer
                   grid_cell_column_pos: 1
                   grid_cell_row_pos: 1
                   grid_cell_x_align: STRETCH
@@ -382,8 +486,14 @@ lvgl:
                         text: "\U0000e316"
                         text_font: icon_big
                         text_color: 0xFF0000
+                  on_long_press:
+                    - homeassistant.service:
+                        service: climate.set_hvac_mode
+                        data:
+                          entity_id: ${zone_right}
+                          hvac_mode: "off"
               - button:
-                  id: zone_right_cooler
+                  id: button_right_cooler
                   grid_cell_column_pos: 1
                   grid_cell_row_pos: 2
                   grid_cell_x_align: STRETCH
@@ -398,6 +508,12 @@ lvgl:
                         text: "\U0000e313"
                         text_font: icon_big
                         text_color: 0x0000FF
+                  on_long_press:
+                    - homeassistant.service:
+                        service: climate.set_hvac_mode
+                        data:
+                          entity_id: ${zone_right}
+                          hvac_mode: "off"
               - obj:
                   grid_cell_column_pos: 2
                   grid_cell_row_pos: 0
@@ -419,21 +535,26 @@ lvgl:
                     pad_column: 0
                   widgets:
                     - label:
-                        text: "\U0000ec0f 10kW"
+                        id: text_solar
+                        hidden: true
                         text_font: font_small
-                        text_color: green
+                        text_color: white
                         text_align: CENTER
                     - label:
-                        text: "\U0000f8b0 50%"
+                        id: text_battery
+                        hidden: true
                         text_font: font_small
-                        text_color: yellow
+                        text_color: white
                         text_align: CENTER
                     - label:
+                        id: text_grid
+                        hidden: true
                         text: "\U0000e646 No Grid"
                         text_font: font_small
                         text_color: red
                         text_align: CENTER
                     - button:
+                        id: button_leave
                         hidden: ${zone_leave_hidden}
                         bg_opa: TRANSP
                         shadow_opa: TRANSP
