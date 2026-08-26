@@ -2,17 +2,16 @@
 substitutions:
   zone: dn
   zone_friendly: "Downstairs"
-  zone_wake_enabled: 'true'
+  zone_leave_hidden: false
 
-  zone_left_enabled: 'true'
   zone_left: climate.midea_downstairs_bedrooms_ir
-  zone_left_title_1: "Downstairs"
-  zone_left_title_2: "Bedrooms"
+  zone_left_title: "Downstairs\nBedrooms"
+  zone_left_span: 1
+  zone_left_hidden: false
 
-  zone_right_enabled: 'true'
   zone_right: climate.midea_downstairs_kitchen_ir
-  zone_right_title_1: "Downstairs"
-  zone_right_title_2: "Kitchen"
+  zone_right_title: "Downstairs\nKitchen"
+  zone_right_hidden: false
 
 packages:
   auto: !include cyd.yaml

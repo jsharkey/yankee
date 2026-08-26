@@ -2,17 +2,16 @@
 substitutions:
   zone: bsmt
   zone_friendly: "Basement"
-  zone_wake_enabled: 'false'
+  zone_leave_hidden: true
 
-  zone_left_enabled: 'false'
-  zone_left: climate.does_not_exist
-  zone_left_title_1: ""
-  zone_left_title_2: ""
+  zone_left: climate.midea_basement_ir
+  zone_left_title: "Basement\nBunkroom"
+  zone_left_span: 2
+  zone_left_hidden: false
 
-  zone_right_enabled: 'true'
-  zone_right: climate.midea_basement_ir
-  zone_right_title_1: "Basement"
-  zone_right_title_2: "Bunkroom"
+  zone_right: climate.does_not_exist
+  zone_right_title: ""
+  zone_right_hidden: true
 
 packages:
   auto: !include cyd.yaml

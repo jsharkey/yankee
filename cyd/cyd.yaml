@@ -47,8 +47,9 @@ font:
           "\U0000f16f", # mode_off_on
           ]
   - file:
-      type: local
-      path: "~/.fonts/Helvetica/Helvetica LT Condensed Medium.ttf"
+      type: gfonts
+      family: Roboto+Condensed
+      weight: 400
     id: font_big
     size: 56
     bpp: 4
@@ -368,11 +369,13 @@ lvgl:
                         hidden: true
                         pad_top: -10
                         pad_bottom: -5
+                        text: ""
                         text_font: font_big
                         text_color: white
                         text_align: CENTER
                     - label:
                         id: text_left_current
+                        text: ""
                         text_font: font_small
                         text_color: grey
                         text_align: CENTER
@@ -484,11 +487,13 @@ lvgl:
                         hidden: true
                         pad_top: -10
                         pad_bottom: -5
+                        text: ""
                         text_font: font_big
                         text_color: white
                         text_align: CENTER
                     - label:
                         id: text_right_current
+                        text: ""
                         text_font: font_small
                         text_color: grey
                         text_align: CENTER
@@ -570,11 +575,13 @@ lvgl:
                   widgets:
                     - label:
                         id: text_solar
+                        text: ""
                         text_font: font_small
                         text_color: white
                         text_align: CENTER
                     - label:
                         id: text_battery
+                        text: ""
                         text_font: font_small
                         text_color: white
                         text_align: CENTER

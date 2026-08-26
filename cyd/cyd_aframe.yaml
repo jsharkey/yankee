@@ -2,16 +2,16 @@
 substitutions:
   zone: aframe
   zone_friendly: "Cabin"
-  zone_leave_hidden: false
+  zone_leave_hidden: true
 
-  zone_left: climate.mitsu_n_bed_mitsubishi_north_bedroom
+  zone_left: climate.midea_aframe_ir
   zone_left_title: "Cabin"
-  zone_left_span: 1
+  zone_left_span: 2
   zone_left_hidden: false
 
-  zone_right: climate.mitsu_n_bed_mitsubishi_north_bedroom
-  zone_right_title: "Cabin"
-  zone_right_hidden: false
+  zone_right: climate.does_not_exist
+  zone_right_title: ""
+  zone_right_hidden: true
 
 packages:
   auto: !include cyd.yaml
