@@ -1,0 +1,171 @@
+
+esphome:
+  name: nest
+
+esp32:
+  variant: esp32
+  framework:
+    version: recommended
+
+status_led:
+  pin:
+    number: 23
+
+api:
+ota:
+  platform: esphome
+
+wifi:
+  fast_connect: true
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+logger:
+  baud_rate: 0
+
+sensor:
+  - platform: homeassistant
+    id: temp_from_ha
+    entity_id: sensor.temp_main_dynamic
+    filters:
+      - lambda: return (x - 32.0) * (5.0/9.0);
+  - platform: homeassistant
+    id: humid_from_ha
+    entity_id: sensor.humid_main
+
+binary_sensor:
+  - platform: switch
+    name: "Heat Pump Output (OB)"
+    source_id: OB
+  - platform: switch
+    name: "Heat Low Output (W1)"
+    source_id: W1
+  - platform: switch
+    name: "Heat High Output (W2)"
+    source_id: W2
+  - platform: switch
+    name: "Cool Low Output (Y1)"
+    source_id: Y1
+  - platform: switch
+    name: "Cool High Output (Y2)"
+    source_id: Y2
+  - platform: switch
+    name: "Fan Output (G)"
+    source_id: G
+  - platform: switch
+    name: "Humidifier Output (HUM)"
+    source_id: HUM
+  - platform: switch
+    name: "Fan Requested (G)"
+    source_id: G_request
+  - platform: switch
+    name: "Humidifier Requested (HUM)"
+    source_id: HUM_request
+
+switch:
+  - platform: gpio
+    pin: GPIO32
+    id: OB # Our Midea is "B" wire that we pull high for heating
+  - platform: gpio
+    pin: GPIO33
+    id: W1
+  - platform: gpio
+    pin: GPIO25
+    id: W2
+  - platform: gpio
+    pin: GPIO26
+    id: Y1
+  - platform: gpio
+    pin: GPIO27
+    id: Y2
+  - platform: gpio
+    pin: GPIO14
+    id: G
+  - platform: gpio
+    pin: GPIO12
+    id: HUM
+  - platform: template
+    id: G_request
+    optimistic: true
+    on_state:
+      - script.execute: G_update
+      - script.execute: HUM_update
+  - platform: template
+    id: HUM_request
+    optimistic: true
+    on_state:
+      - script.execute: G_update
+      - script.execute: HUM_update
+
+script:
+  - id: G_update
+    mode: queued
+    then:
+      switch.control:
+        id: G
+        state: !lambda |-
+          return (id(G_request).state || id(HUM_request).state) && (id(nest).mode != CLIMATE_MODE_OFF);
+  - id: HUM_update
+    mode: queued
+    then:
+      switch.control:
+        id: HUM
+        state: !lambda |-
+          return id(HUM_request).state && (id(nest).mode != CLIMATE_MODE_OFF);
+
+climate:
+  - platform: thermostat
+    name: "Main Thermostat"
+    id: nest
+    sensor: temp_from_ha
+    humidity_sensor: humid_from_ha
+    cool_deadband: 0.5°C
+    cool_overrun: 0.5°C
+    heat_deadband: 0.5°C
+    heat_overrun: 0.5°C
+    humidity_hysteresis: 1%
+    min_cooling_off_time: 3min # Matches Nest
+    min_cooling_run_time: 5min # Matches Nest
+    min_heating_off_time: 3min # Matches Nest
+    min_heating_run_time: 3min # Matches Nest
+    max_cooling_run_time: 60min # Matches Nest
+    max_heating_run_time: 60min # Matches Nest
+    min_fanning_off_time: 3min
+    min_fanning_run_time: 3min
+    min_idle_time: 3min
+    set_point_minimum_differential: 1°C
+    cool_action:
+      - switch.turn_on: Y1
+    supplemental_cooling_delta: 1.5°C # Matches Nest
+    supplemental_cooling_action:
+      - switch.turn_on: Y2
+    heat_action:
+      - switch.turn_on: W1
+    supplemental_heating_delta: 1.5°C # Matches Nest
+    supplemental_heating_action:
+      - switch.turn_on: W2
+    fan_only_action:
+      - switch.turn_on: G_request
+    idle_action:
+      - switch.turn_off: Y1
+      - switch.turn_off: Y2
+      - switch.turn_off: W1
+      - switch.turn_off: W2
+      - switch.turn_off: G_request
+    humidity_control_humidify_action:
+      - switch.turn_on: HUM_request
+    humidity_control_off_action:
+      - switch.turn_off: HUM_request
+    on_state:
+      - script.execute: G_update
+      - script.execute: HUM_update
+    default_preset: home
+    preset:
+      - name: home
+        mode: heat_cool
+        default_target_temperature_low: 68°F
+        default_target_temperature_high: 74°F
+      - name: away
+        mode: heat
+        default_target_temperature_low: 50°F
+        default_target_temperature_high: 86°F
