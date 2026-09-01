@@ -119,10 +119,10 @@ climate:
     id: nest
     sensor: temp_from_ha
     humidity_sensor: humid_from_ha
-    cool_deadband: 0.5°C
-    cool_overrun: 0.5°C
-    heat_deadband: 0.5°C
-    heat_overrun: 0.5°C
+    cool_deadband: 0.25°C
+    cool_overrun: 0.25°C
+    heat_deadband: 0.25°C
+    heat_overrun: 0.25°C
     humidity_hysteresis: 1%
     min_cooling_off_time: 3min # Matches Nest
     min_cooling_run_time: 5min # Matches Nest
@@ -134,6 +134,7 @@ climate:
     min_fanning_run_time: 3min
     min_idle_time: 3min
     set_point_minimum_differential: 1°C
+    heat_cool_mode: []
     cool_action:
       - switch.turn_on: Y1
     supplemental_cooling_delta: 1.5°C # Matches Nest
@@ -169,3 +170,9 @@ climate:
         mode: heat
         default_target_temperature_low: 50°F
         default_target_temperature_high: 86°F
+    visual:
+      temperature_step:
+        target_temperature: 1
+        current_temperature: 0.1
+      min_humidity: 20%
+      max_humidity: 40%
