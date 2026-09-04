@@ -23,7 +23,15 @@ wifi:
 logger:
   baud_rate: 0
 
+one_wire:
+  - platform: gpio
+    pin: GPIO15
+
 sensor:
+  - platform: dallas_temp
+    name: "Probe Temperature"
+    id: temp_from_probe
+    update_interval: 60s
   - platform: homeassistant
     id: temp_from_ha
     entity_id: sensor.temp_main_dynamic
@@ -32,6 +40,24 @@ sensor:
   - platform: homeassistant
     id: humid_from_ha
     entity_id: sensor.humid_main
+  - platform: template
+    id: temp_with_fallback
+    lambda: |-
+      if (global_api_server->is_connected()) {
+        return id(temp_from_ha).state;
+      } else {
+        return id(temp_from_probe).state;
+      }
+    update_interval: 60s
+  - platform: template
+    id: humid_with_fallback
+    lambda: |-
+      if (global_api_server->is_connected()) {
+        return id(humid_from_ha).state;
+      } else {
+        return 42;
+      }
+    update_interval: 60s
 
 binary_sensor:
   - platform: switch
@@ -104,7 +130,12 @@ script:
       switch.control:
         id: G
         state: !lambda |-
-          return (id(G_request).state || id(HUM_request).state) && (id(nest).mode != CLIMATE_MODE_OFF);
+          if (global_api_server->is_connected()) {
+            return (id(G_request).state || id(HUM_request).state) && (id(nest).mode != CLIMATE_MODE_OFF);
+          } else {
+            // Force fan on when disconnected so we get accurate reading from duct probe
+            return true;
+          }
   - id: HUM_update
     mode: queued
     then:
