@@ -1,4 +1,9 @@
 
+# RED = GND
+# WHI = 5V
+# YEL = TX
+# ORG = RX
+
 substitutions:
   zone: n_bed
   zone_friendly: "North Bedroom"
@@ -13,8 +18,6 @@ esp8266:
     version: recommended
 
 api:
-  reboot_timeout: 3h
-
 ota:
   platform: esphome
 
@@ -36,64 +39,11 @@ external_components:
   - source: github://echavet/MitsubishiCN105ESPHome
 
 climate:
-  - platform: thermostat
-    id: mitsu
-    name: "Mitsubishi $zone_friendly"
-    sensor: temp_from_ha
-    cool_deadband: 0.25°C
-    cool_overrun: 0.25°C
-    heat_deadband: 0.25°C
-    heat_overrun: 0.25°C
-    min_cooling_off_time: 3min
-    min_cooling_run_time: 3min
-    min_heating_off_time: 3min
-    min_heating_run_time: 3min
-    min_idle_time: 1min
-    set_point_minimum_differential: 1°C
-    heat_cool_mode: []
-    cool_action:
-      - lambda: |-
-          auto call = id(mitsu_internal).make_call();
-          call.set_mode(climate::CLIMATE_MODE_COOL);
-          call.set_target_temperature(id(mitsu).target_temperature_high);
-          call.perform();
-    heat_action:
-      - lambda: |-
-          auto call = id(mitsu_internal).make_call();
-          call.set_mode(climate::CLIMATE_MODE_HEAT);
-          call.set_target_temperature(id(mitsu).target_temperature_low);
-          call.perform();
-    idle_action:
-      - delay: 0s
-    on_state:
-      - lambda: |-
-          if (id(mitsu).mode == CLIMATE_MODE_OFF) {
-            auto call = id(mitsu_internal).make_call();
-            call.set_mode(climate::CLIMATE_MODE_OFF);
-            call.perform();
-          }
-    default_preset: home
-    preset:
-      - name: home
-        mode: heat_cool
-        default_target_temperature_low: 68°F
-        default_target_temperature_high: 74°F
-      - name: away
-        mode: heat
-        default_target_temperature_low: 50°F
-        default_target_temperature_high: 86°F
-    visual:
-      temperature_step:
-        target_temperature: 1
-        current_temperature: 0.1
   - platform: cn105
-    id: mitsu_internal
-    name: "Mitsubishi $zone_friendly (Internal)"
+    id: mitsu_$zone
+    name: "Mitsubishi $zone_friendly"
     update_interval: 2s
-    remote_temperature_timeout: 30min
-    remote_temperature_keepalive_interval: 15s
-    remote_temperature_source:
-      sensor_id: temp_from_ha
+    remote_temperature_timeout: 120min
     on_state:
       - lambda: |-
           auto current_f = (x.current_temperature * (9.0/5.0)) + 32.0;
@@ -114,7 +64,6 @@ sensor:
   - platform: homeassistant
     name: "Remote Temperature Sensor"
     entity_id: ${remote_temp_sensor}
-    id: temp_from_ha
     internal: false
     disabled_by_default: true
     device_class: temperature
@@ -127,3 +76,10 @@ sensor:
           max_value: 40
           ignore_out_of_range: true
       - throttle: 30s
+    on_value:
+      then:
+        - logger.log:
+            level: INFO
+            format: "Remote temperature received from HA: %.1f C"
+            args: [ 'x' ]
+        - lambda: "id(mitsu_$zone).set_remote_temperature(x);"
