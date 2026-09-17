@@ -82,9 +82,6 @@ binary_sensor:
     name: "Humidifier Output (HUM)"
     source_id: HUM
   - platform: switch
-    name: "Fan Requested (G)"
-    source_id: G_request
-  - platform: switch
     name: "Humidifier Requested (HUM)"
     source_id: HUM_request
 
@@ -112,6 +109,7 @@ switch:
     id: HUM
   - platform: template
     id: G_request
+    name: "Fan Requested (G)"
     optimistic: true
     on_state:
       - script.execute: G_update
@@ -161,8 +159,6 @@ climate:
     min_heating_run_time: 3min # Matches Nest
     max_cooling_run_time: 60min # Matches Nest
     max_heating_run_time: 60min # Matches Nest
-    min_fanning_off_time: 3min
-    min_fanning_run_time: 3min
     min_idle_time: 3min
     set_point_minimum_differential: 1°C
     heat_cool_mode: []
@@ -176,14 +172,11 @@ climate:
     supplemental_heating_delta: 1.5°C # Matches Nest
     supplemental_heating_action:
       - switch.turn_on: W2
-    fan_only_action:
-      - switch.turn_on: G_request
     idle_action:
       - switch.turn_off: Y1
       - switch.turn_off: Y2
       - switch.turn_off: W1
       - switch.turn_off: W2
-      - switch.turn_off: G_request
     humidity_control_humidify_action:
       - switch.turn_on: HUM_request
     humidity_control_off_action:
