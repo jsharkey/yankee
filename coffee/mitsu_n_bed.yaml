@@ -18,6 +18,8 @@ esp8266:
     version: recommended
 
 api:
+  reboot_timeout: 3h
+
 ota:
   platform: esphome
 
@@ -43,7 +45,12 @@ climate:
     id: mitsu_$zone
     name: "Mitsubishi $zone_friendly"
     update_interval: 2s
-    remote_temperature_timeout: 120min
+    remote_temperature_timeout: 30min
+    remote_temperature_keepalive_interval: 15s
+    remote_temperature_source:
+      sensor_id: temp_from_ha
+    supports:
+      dual_setpoint: true
     on_state:
       - lambda: |-
           auto current_f = (x.current_temperature * (9.0/5.0)) + 32.0;
@@ -64,6 +71,7 @@ sensor:
   - platform: homeassistant
     name: "Remote Temperature Sensor"
     entity_id: ${remote_temp_sensor}
+    id: temp_from_ha
     internal: false
     disabled_by_default: true
     device_class: temperature
@@ -76,10 +84,3 @@ sensor:
           max_value: 40
           ignore_out_of_range: true
       - throttle: 30s
-    on_value:
-      then:
-        - logger.log:
-            level: INFO
-            format: "Remote temperature received from HA: %.1f C"
-            args: [ 'x' ]
-        - lambda: "id(mitsu_$zone).set_remote_temperature(x);"
