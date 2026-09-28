@@ -58,6 +58,20 @@ sensor:
         return 42;
       }
     update_interval: 60s
+  - platform: template
+    name: "Airflow"
+    id: airflow
+    lambda: |-
+      if (id(W2).state) { return 1450; }
+      if (id(W1).state) { return 1000; }
+      if (id(Y2).state) { return 875; }
+      if (id(Y1).state) { return 450; }
+      if (id(G).state) { return 450; }
+      return 0;
+    update_interval: 10s
+    unit_of_measurement: "CFM"
+    device_class: "volume_flow_rate"
+    state_class: "measurement"
 
 binary_sensor:
   - platform: switch
