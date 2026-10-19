@@ -69,7 +69,18 @@ sensor:
       if (id(G).state) { return 450; }
       return 0;
     update_interval: 10s
-    unit_of_measurement: "CFM"
+    unit_of_measurement: "ft³/min"
+    device_class: "volume_flow_rate"
+    state_class: "measurement"
+  - platform: template
+    name: "Gasflow"
+    id: gasflow
+    lambda: |-
+      if (id(W2).state) { return 100; }
+      if (id(W1).state) { return 65; }
+      return 0;
+    update_interval: 10s
+    unit_of_measurement: "ft³/hr"
     device_class: "volume_flow_rate"
     state_class: "measurement"
 
