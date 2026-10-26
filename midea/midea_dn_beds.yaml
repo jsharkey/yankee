@@ -42,6 +42,7 @@ sensor:
     internal: true
     filters:
       - lambda: return (x - 32.0) * (5.0/9.0);
+      - filter_out: nan
   - platform: homeassistant
     id: target_from_ha
     entity_id: sensor.temp_${zone}_target
@@ -51,7 +52,13 @@ sensor:
       - throttle: 10s
       - heartbeat: 30s
       - debounce: 1s
+      - filter_out: nan
     on_value:
-      remote_transmitter.transmit_midea:
-        code: !lambda |-
-          return {0xA4, 0x82, 0x48, 0x7F, (uint8_t)(id(target_from_ha).state + 1)};
+      - if:
+          condition:
+            api.connected:
+              state_subscription_only: true
+          then:
+            - remote_transmitter.transmit_midea:
+                code: !lambda |-
+                  return {0xA4, 0x82, 0x48, 0x7F, (uint8_t)(id(target_from_ha).state + 1)};
