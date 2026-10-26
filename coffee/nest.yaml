@@ -140,6 +140,14 @@ switch:
       - script.execute: G_update
       - script.execute: HUM_update
   - platform: template
+    id: HUM_enable
+    name: "Humidifer Enabled (G)"
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF
+    on_state:
+      - script.execute: G_update
+      - script.execute: HUM_update
+  - platform: template
     id: HUM_request
     optimistic: true
     on_state:
@@ -154,7 +162,7 @@ script:
         id: G
         state: !lambda |-
           if (global_api_server->is_connected()) {
-            return (id(G_request).state || id(HUM_request).state) && (id(nest).mode != CLIMATE_MODE_OFF);
+            return (id(G_request).state || (id(HUM_enable).state && id(HUM_request).state)) && (id(nest).mode != CLIMATE_MODE_OFF);
           } else {
             // Force fan on when disconnected so we get accurate reading from duct probe
             return true;
@@ -165,7 +173,7 @@ script:
       switch.control:
         id: HUM
         state: !lambda |-
-          return id(HUM_request).state && (id(nest).mode != CLIMATE_MODE_OFF);
+          return id(HUM_enable).state && id(HUM_request).state && (id(nest).mode != CLIMATE_MODE_OFF);
 
 climate:
   - platform: thermostat
