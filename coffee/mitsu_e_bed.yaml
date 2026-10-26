@@ -44,6 +44,41 @@ climate:
     name: "Mitsubishi $zone_friendly"
     update_interval: 2s
     remote_temperature_timeout: 120min
+    on_state:
+      - lambda: |-
+          auto current_f = (x.current_temperature * (9.0/5.0)) + 32.0;
+          auto target_f = (x.target_temperature * (9.0/5.0)) + 32.0;
+          auto delta_f = current_f - target_f;
+          ESP_LOGD("mitsu", "current=%f target=%f delta=%f", current_f, target_f, delta_f);
+          if (x.mode == CLIMATE_MODE_FAN_ONLY && delta_f <= -1) {
+            ESP_LOGD("mitsu", "too cold; moving from fan to heat");
+            id(script_heat).execute();
+          } else if (x.mode == CLIMATE_MODE_HEAT && delta_f >= 1) {
+            ESP_LOGD("mitsu", "too hot; moving from heat to fan");
+            id(script_fan).execute();
+          }
+
+script:
+  - id: script_heat
+    mode: single
+    then:
+      - climate.control:
+          id: mitsu_$zone
+          mode: "OFF"
+      - delay: 5s
+      - climate.control:
+          id: mitsu_$zone
+          mode: "HEAT"
+  - id: script_fan
+    mode: single
+    then:
+      - climate.control:
+          id: mitsu_$zone
+          mode: "OFF"
+      - delay: 5s
+      - climate.control:
+          id: mitsu_$zone
+          mode: "FAN_ONLY"
 
 sensor:
   - platform: uptime
@@ -62,7 +97,7 @@ sensor:
           min_value: 1
           max_value: 40
           ignore_out_of_range: true
-      - throttle: 30s
+      - heartbeat: 15s
     on_value:
       then:
         - logger.log:
