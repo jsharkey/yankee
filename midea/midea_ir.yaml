@@ -46,6 +46,16 @@ climate:
     sensor: temp_from_ha
     use_fahrenheit: false
 
+globals:
+  - id: last_target_ms
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+  - id: have_target
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+
 sensor:
   - platform: homeassistant
     id: temp_from_ha
@@ -64,11 +74,21 @@ sensor:
       - heartbeat: 30s
       - debounce: 1s
       - filter_out: nan
+    on_raw_value:
+      - lambda: |-
+          if (!isnan(x)) {
+            id(last_target_ms) = millis();
+            id(have_target) = true;
+          }
     on_value:
       - if:
           condition:
-            api.connected:
-              state_subscription_only: true
+            and:
+              - api.connected:
+                  state_subscription_only: true
+              - lambda: |-
+                  return id(have_target) &&
+                         (millis() - id(last_target_ms)) < 120UL * 60UL * 1000UL;
           then:
             - remote_transmitter.transmit_midea:
                 code: !lambda |-
