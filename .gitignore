@@ -1,4 +1,4 @@
-.esphome
-venv
+**/.esphome
+**/venv
 
-secrets.yaml
+**/secrets.yaml
