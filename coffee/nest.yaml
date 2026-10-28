@@ -12,8 +12,10 @@ status_led:
     number: 23
 
 api:
+
 ota:
-  platform: esphome
+  - platform: esphome
+    password: !secret ota_password
 
 wifi:
   fast_connect: true
@@ -27,23 +29,62 @@ one_wire:
   - platform: gpio
     pin: GPIO15
 
+globals:
+  - id: ha_temp_last_ms
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+  - id: ha_temp_seen
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+  - id: ha_humid_last_ms
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+  - id: ha_humid_seen
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+
 sensor:
   - platform: dallas_temp
     name: "Probe Temperature"
     id: temp_from_probe
     update_interval: 60s
+    on_value:
+      - component.update: temp_with_fallback
   - platform: homeassistant
     id: temp_from_ha
     entity_id: sensor.temp_main_dynamic
     filters:
       - lambda: return (x - 32.0) * (5.0/9.0);
+    on_raw_value:
+      - lambda: |-
+          if (!isnan(x)) {
+            id(ha_temp_last_ms) = millis();
+            id(ha_temp_seen) = true;
+          }
+    on_value:
+      - component.update: temp_with_fallback
   - platform: homeassistant
     id: humid_from_ha
     entity_id: sensor.humid_main
+    on_raw_value:
+      - lambda: |-
+          if (!isnan(x)) {
+            id(ha_humid_last_ms) = millis();
+            id(ha_humid_seen) = true;
+          }
+    on_value:
+      - component.update: humid_with_fallback
   - platform: template
     id: temp_with_fallback
+    unit_of_measurement: "°C"
+    device_class: temperature
+    accuracy_decimals: 1
     lambda: |-
-      if (global_api_server->is_connected()) {
+      if (id(temp_source_is_ha).state) {
         return id(temp_from_ha).state;
       } else {
         return id(temp_from_probe).state;
@@ -51,11 +92,14 @@ sensor:
     update_interval: 60s
   - platform: template
     id: humid_with_fallback
+    unit_of_measurement: "%"
+    device_class: humidity
+    accuracy_decimals: 1
     lambda: |-
-      if (global_api_server->is_connected()) {
+      if (id(humid_source_is_ha).state) {
         return id(humid_from_ha).state;
       } else {
-        return 42;
+        return 42.0f;
       }
     update_interval: 60s
   - platform: template
@@ -85,6 +129,25 @@ sensor:
     state_class: "measurement"
 
 binary_sensor:
+  - platform: template
+    id: temp_source_is_ha
+    lambda: |-
+      return global_api_server->is_connected(true)
+                   && id(ha_temp_seen)
+                   && (millis() - id(ha_temp_last_ms)) < 120UL * 60UL * 1000UL
+                   && !isnan(id(temp_from_ha).state);
+    on_state:
+      - component.update: temp_with_fallback
+      - script.execute: G_update
+  - platform: template
+    id: humid_source_is_ha
+    lambda: |-
+      return global_api_server->is_connected(true)
+                   && id(ha_humid_seen)
+                   && (millis() - id(ha_humid_last_ms)) < 120UL * 60UL * 1000UL
+                   && !isnan(id(humid_from_ha).state);
+    on_state:
+      - component.update: humid_with_fallback
   - platform: switch
     name: "Heat Pump Output (OB)"
     source_id: OB
@@ -161,10 +224,10 @@ script:
       switch.control:
         id: G
         state: !lambda |-
-          if (global_api_server->is_connected()) {
+          if (id(temp_source_is_ha).state) {
             return (id(G_request).state || (id(HUM_enable).state && id(HUM_request).state)) && (id(nest).mode != CLIMATE_MODE_OFF);
           } else {
-            // Force fan on when disconnected so we get accurate reading from duct probe
+            // Force fan on when using the duct probe so it reads real room air
             return true;
           }
   - id: HUM_update
@@ -179,8 +242,8 @@ climate:
   - platform: thermostat
     name: "Main Thermostat"
     id: nest
-    sensor: temp_from_ha
-    humidity_sensor: humid_from_ha
+    sensor: temp_with_fallback
+    humidity_sensor: humid_with_fallback
     cool_deadband: 0.25°C
     cool_overrun: 0.25°C
     heat_deadband: 0.25°C
