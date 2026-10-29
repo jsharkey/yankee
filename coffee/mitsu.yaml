@@ -47,17 +47,11 @@ climate:
     compressor_frequency_sensor:
       name: Compressor Frequency
       entity_category: diagnostic
-    outside_air_temperature_sensor:
-      name: Outside Air Temp
-      entity_category: diagnostic
     vertical_vane_select:
       name: Vertical Vane
       entity_category: diagnostic
     horizontal_vane_select:
       name: Horizontal Vane
-      entity_category: diagnostic
-    isee_sensor:
-      name: ISEE Sensor
       entity_category: diagnostic
     stage_sensor:
       name: Stage
@@ -65,65 +59,44 @@ climate:
     sub_mode_sensor:
       name: Sub Mode
       entity_category: diagnostic
-    auto_sub_mode_sensor:
-      name: Auto Sub Mode
-      entity_category: diagnostic
-    input_power_sensor:
-      name: Input Power
-      entity_category: diagnostic
-    kwh_sensor:
-      name: Energy Usage
-      entity_category: diagnostic
-    runtime_hours_sensor:
-      name: Runtime Hours
-      entity_category: diagnostic
-    air_purifier_switch:
-      name: Air purifier
-      entity_category: diagnostic
-    night_mode_switch:
-      name: Night mode
-      entity_category: diagnostic
-    circulator_switch:
-      name: Circulator
-      entity_category: diagnostic
-    airflow_control_select:
-      name: Airflow Control
-      entity_category: diagnostic
     on_state:
       - lambda: |-
           auto current_f = (x.current_temperature * (9.0/5.0)) + 32.0;
           auto target_f = (x.target_temperature * (9.0/5.0)) + 32.0;
           auto delta_f = current_f - target_f;
           ESP_LOGD("mitsu", "current=%f target=%f delta=%f", current_f, target_f, delta_f);
-          if (x.mode == CLIMATE_MODE_FAN_ONLY && delta_f <= -1) {
-            ESP_LOGD("mitsu", "heating too cold; moving from fan to heat");
-            id(script_heat).execute();
-          } else if (x.mode == CLIMATE_MODE_HEAT && delta_f >= 1) {
-            ESP_LOGD("mitsu", "heating too hot; moving from heat to fan");
-            id(script_fan).execute();
-          } else if (x.mode == CLIMATE_MODE_COOL) {
-            ClimateFanMode desired;
-            if (${zone_force_cooling_fan_medium}) {
-              desired = CLIMATE_FAN_MEDIUM;
-            } else if (delta_f >= 1) {
-              desired = CLIMATE_FAN_AUTO;
-            } else {
-              desired = CLIMATE_FAN_QUIET;
-            }
 
-            // Only send a command when the fan mode actually needs to change;
-            // on_state fires every poll, so without this guard we'd spam the unit.
-            if (!x.fan_mode.has_value() || *x.fan_mode != desired) {
-              ESP_LOGD("mitsu", "cooling; changing fan mode to %s",
-                       LOG_STR_ARG(climate_fan_mode_to_string(desired)));
-              auto call = id(mitsu_$zone).make_call();
-              call.set_fan_mode(desired);
-              call.perform();
+          if (id(fan_only_when_satisfied).state) {
+            if (x.mode == CLIMATE_MODE_FAN_ONLY && delta_f <= -1) {
+              ESP_LOGD("mitsu", "heating too cold; moving from fan to heat");
+              id(script_heat_auto).execute();
+            } else if (x.mode == CLIMATE_MODE_HEAT && delta_f >= 1) {
+              ESP_LOGD("mitsu", "heating too hot; moving from heat to fan");
+              id(script_fan_only_auto).execute();
             }
           }
 
+          ClimateFanMode desired;
+          if (id(fan_quiet_when_satisfied).state && delta_f > -1 && delta_f < 1) {
+            desired = CLIMATE_FAN_QUIET;
+          } else if (id(fan_medium_when_cooling).state && x.mode == CLIMATE_MODE_COOL) {
+            desired = CLIMATE_FAN_MEDIUM;
+          } else {
+            desired = CLIMATE_FAN_AUTO;
+          }
+
+          // Only send a command when the fan mode actually needs to change;
+          // on_state fires every poll, so without this guard we'd spam the unit.
+          if (!x.fan_mode.has_value() || *x.fan_mode != desired) {
+            ESP_LOGD("mitsu", "changing fan mode to %s",
+                      LOG_STR_ARG(climate_fan_mode_to_string(desired)));
+            auto call = id(mitsu_$zone).make_call();
+            call.set_fan_mode(desired);
+            call.perform();
+          }
+
 script:
-  - id: script_heat
+  - id: script_heat_auto
     mode: single
     then:
       - climate.control:
@@ -137,7 +110,7 @@ script:
       - climate.control:
           id: mitsu_$zone
           fan_mode: "AUTO"
-  - id: script_fan
+  - id: script_fan_only_auto
     mode: single
     then:
       - climate.control:
@@ -167,3 +140,33 @@ sensor:
     filters:
       - lambda: return (x - 32) * (5.0/9.0);
       - filter_out: nan
+
+
+switch:
+  - platform: template
+    id: fan_only_when_satisfied
+    name: "Fan Only when Satisfied"
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF
+    on_state:
+      - then:
+          - lambda: |-
+              id(mitsu_$zone).publish_state();
+  - platform: template
+    id: fan_quiet_when_satisfied
+    name: "Fan Quiet when Satisfied"
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF
+    on_state:
+      - then:
+          - lambda: |-
+              id(mitsu_$zone).publish_state();
+  - platform: template
+    id: fan_medium_when_cooling
+    name: "Fan Medium when Cooling"
+    restore_mode: RESTORE_DEFAULT_OFF
+    optimistic: true
+    on_state:
+      - then:
+          - lambda: |-
+              id(mitsu_$zone).publish_state();

@@ -2,7 +2,6 @@
 substitutions:
   zone: sw_bed
   zone_friendly: "Southwest Bedroom"
-  zone_force_cooling_fan_medium: "true"
   remote_temp_sensor: sensor.tze200_a8sdabtg_ts0601_4_temperature
 
 packages:

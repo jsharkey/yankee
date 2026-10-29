@@ -2,7 +2,6 @@
 substitutions:
   zone: n_bed
   zone_friendly: "North Bedroom"
-  zone_force_cooling_fan_medium: "false"
   remote_temp_sensor: sensor.tze200_a8sdabtg_ts0601_1_temperature
 
 packages:
