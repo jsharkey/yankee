@@ -79,9 +79,9 @@ climate:
           ClimateFanMode desired;
           if (id(fan_medium_when_cooling).state && x.mode == CLIMATE_MODE_COOL) {
             desired = CLIMATE_FAN_MEDIUM;
-          } else if (id(fan_quiet_when_satisfied).state && x.mode == CLIMATE_MODE_COOL && delta_f > -1) {
+          } else if (id(fan_quiet_when_satisfied).state && x.mode == CLIMATE_MODE_COOL && delta_f < -1) {
             desired = CLIMATE_FAN_QUIET;
-          } else if (id(fan_quiet_when_satisfied).state && x.mode == CLIMATE_MODE_HEAT && delta_f < 1) {
+          } else if (id(fan_quiet_when_satisfied).state && x.mode == CLIMATE_MODE_HEAT && delta_f > 1) {
             desired = CLIMATE_FAN_QUIET;
           } else {
             desired = CLIMATE_FAN_AUTO;
