@@ -88,7 +88,7 @@ sensor:
                   state_subscription_only: true
               - lambda: |-
                   return id(have_target) &&
-                         (millis() - id(last_target_ms)) < 120UL * 60UL * 1000UL;
+                         (millis() - id(last_target_ms)) < 180UL * 60UL * 1000UL;
           then:
             - remote_transmitter.transmit_midea:
                 code: !lambda |-
