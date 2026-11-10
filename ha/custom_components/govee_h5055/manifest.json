@@ -1,0 +1,18 @@
+{
+  "domain": "govee_h5055",
+  "name": "Govee H5055 BBQ Thermometer",
+  "bluetooth": [
+    {
+      "service_uuid": "00005550-0000-1000-8000-00805f9b34fb",
+      "connectable": false
+    }
+  ],
+  "codeowners": [],
+  "config_flow": true,
+  "dependencies": ["bluetooth_adapters"],
+  "documentation": "https://github.com/jsharkey/yankee/tree/main/ha/custom_components/govee_h5055",
+  "integration_type": "device",
+  "iot_class": "local_push",
+  "requirements": [],
+  "version": "0.1.0"
+}

@@ -1,0 +1,34 @@
+{
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "description": "Choose a Govee H5055 thermometer to set up.",
+        "data": { "address": "Device" }
+      },
+      "bluetooth_confirm": {
+        "description": "Set up {name}?"
+      }
+    },
+    "abort": {
+      "already_configured": "This thermometer is already set up.",
+      "no_devices_found": "No unconfigured H5055 thermometers were heard over Bluetooth.",
+      "not_supported": "This device is not an H5055."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "probe_temperature": { "name": "Probe {probe}" },
+      "device_low_alarm": { "name": "Probe {probe} device low alarm" },
+      "device_high_alarm": { "name": "Probe {probe} device high alarm" }
+    },
+    "number": {
+      "low_limit": { "name": "Probe {probe} low limit" },
+      "high_limit": { "name": "Probe {probe} high limit" }
+    },
+    "binary_sensor": {
+      "probe_alarm": { "name": "Probe {probe} alarm" },
+      "any_alarm": { "name": "Alarm" }
+    }
+  }
+}
