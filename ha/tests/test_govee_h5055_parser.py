@@ -12,10 +12,12 @@ parser = importlib.util.module_from_spec(_spec)
 sys.modules["h5055_parser"] = parser
 _spec.loader.exec_module(parser)
 
-# The advertisement from the user's own device. It is not a temperature frame;
-# Home Assistant's built-in parser reads it as probe 1 = -32284 C, battery 0 %.
+# Frame type 0x41, captured from a real device with only probe 1 plugged in.
+# Home Assistant's built-in parser reads these as wild temperatures.
 USER_ADDRESS = "A4:C1:38:40:07:6C"
-USER_FRAME = bytes.fromhex("6c41000101e48100ffffffffffffffffffffffff")
+USER_FRAME = bytes.fromhex("6c41000101e48100ffffffffffffffffffffffff")  # 5 & 6
+USER_P12 = bytes.fromhex("6c41000101e4010009c4ffffffffffffffffffff")
+USER_P34 = bytes.fromhex("6c41000101e44100ffffffffffffffffffffffff")
 
 # Temperature frames from the govee-ble test suite (device A4:C1:38:2F:AF:55).
 GB_ADDRESS = "A4:C1:38:2F:AF:55"
@@ -35,9 +37,41 @@ def test_select_payload_prefers_mac_derived_id():
     assert parser.select_payload(USER_ADDRESS, data) == USER_FRAME
 
 
-def test_user_frame_is_rejected():
+def test_v41_probe_1_and_2():
+    frame = parser.parse_frame(USER_P12, USER_ADDRESS)
+    assert frame.battery == 100
+    p1, p2 = frame.probes
+    assert (p1.probe, p1.connected, p1.temperature) == (1, True, 25.0)
+    assert (p1.low_alarm, p1.high_alarm) == (None, None)
+    assert (p2.probe, p2.connected, p2.temperature) == (2, False, None)
+
+
+def test_v41_empty_pairs():
+    for data, pair in ((USER_P34, (3, 4)), (USER_FRAME, (5, 6))):
+        frame = parser.parse_frame(data, USER_ADDRESS)
+        assert tuple(p.probe for p in frame.probes) == pair
+        assert all(p.temperature is None and not p.connected for p in frame.probes)
+
+
+def test_v41_limits_and_fractions():
+    data = bytearray(USER_P12)
+    data[8:14] = (7350).to_bytes(2, "big") + (1000).to_bytes(2, "big") + (9000).to_bytes(2, "big")
+    p1, _ = parser.parse_frame(bytes(data), USER_ADDRESS).probes
+    assert (p1.temperature, p1.low_alarm, p1.high_alarm) == (73.5, 10.0, 90.0)
+
+
+def test_v41_out_of_range_rejected():
+    data = bytearray(USER_P12)
+    data[8:10] = (50000).to_bytes(2, "big")
     with pytest.raises(parser.FrameRejected):
-        parser.parse_frame(USER_FRAME, USER_ADDRESS)
+        parser.parse_frame(bytes(data), USER_ADDRESS)
+
+
+def test_unknown_frame_type_rejected():
+    data = bytearray(USER_P12)
+    data[1] = 0x42
+    with pytest.raises(parser.FrameRejected):
+        parser.parse_frame(bytes(data), USER_ADDRESS)
 
 
 def test_probe_1_only():
