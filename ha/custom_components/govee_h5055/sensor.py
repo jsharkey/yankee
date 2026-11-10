@@ -39,7 +39,7 @@ async def async_setup_entry(
 class _TemperatureBase(H5055Entity, SensorEntity):
     _attr_device_class = SensorDeviceClass.TEMPERATURE
     _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
-    _attr_suggested_display_precision = 0
+    _attr_suggested_display_precision = 1
 
 
 class ProbeTemperatureSensor(_TemperatureBase):
@@ -58,7 +58,7 @@ class ProbeTemperatureSensor(_TemperatureBase):
         return self.coordinator.available
 
     @property
-    def native_value(self) -> int | None:
+    def native_value(self) -> float | None:
         reading = self.coordinator.probes.get(self.probe)
         return reading.temperature if reading else None
 
@@ -80,7 +80,7 @@ class DeviceLimitSensor(_TemperatureBase):
         return self.coordinator.available
 
     @property
-    def native_value(self) -> int | None:
+    def native_value(self) -> float | None:
         reading = self.coordinator.probes.get(self.probe)
         if reading is None:
             return None

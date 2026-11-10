@@ -6,19 +6,18 @@ connects to it.
 
 ## Why not the built-in Govee Bluetooth integration?
 
-The H5055 sends more than one kind of 20-byte advertisement. The built-in
-`govee_ble` parser decodes all of them as temperature frames. For example, this
-frame from a real device
+Newer H5055 firmware sends frame type `0x41`, which has a different layout
+(big-endian hundredths of a degree, fields shifted by three bytes). The
+built-in `govee_ble` parser only knows the older type `0x00` layout and decodes
+`0x41` frames with it anyway. A real device holding steady at 25 °C reads as
+484 °C, -32284 °C or 16868 °C depending on which probe pair the frame carries,
+with the battery at 0 %. That is why its readings jump around.
 
-    6c 41 00 01 01 e4 81 00 ff ff ff ff ff ff ff ff ff ff ff ff
-
-comes out as probe 1 = -32284 °C with the battery at 0 %, which is why its
-readings jump around. This parser accepts a frame only when all of these hold:
+This parser picks the layout from the frame type and accepts a frame only when:
 
 * the first byte matches the end of the MAC address;
-* the frame-type byte is `0x00`;
+* the frame type is `0x00` or `0x41`;
 * the probe selector is valid;
-* the two trailing bytes are `00 00`;
 * every value is between -40 and 400 °C.
 
 It ignores everything else. The diagnostics download lists the last 50 raw

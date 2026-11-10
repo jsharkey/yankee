@@ -24,13 +24,27 @@ id has been stripped off::
     [16:18]  second probe high alarm limit
     [18:20]  always 0x0000 in a temperature frame
 
-The device also sends other kinds of 20 byte frames on the same advertisement
-(for example ``6c 41 00 01 01 e4 81 00 ff ff ...``). Home Assistant's built-in
-``govee_ble`` parser does not tell these apart from temperature frames and
-decodes them as temperatures (that one comes out as -32284 C, with the battery
-at 0 %), which is where the erratic readings come from. This parser only
-accepts frames that pass every structural check below, and range-checks the
-values as well.
+Newer firmware sends frame type 0x41 instead, with a different layout::
+
+    [0]      last byte of the MAC address
+    [1]      0x41
+    [2:5]    unknown (0x00 0x01 0x01 seen)
+    [5]      battery percent (bit 7 is a flag, masked off)
+    [6]      probe selector, same meaning as [3] above
+    [7]      status byte (0x00 seen)
+    [8:10]   first probe temperature, int16 big endian, hundredths of a degree C
+    [10:12]  first probe low alarm limit  (0xFFFF = not set)
+    [12:14]  first probe high alarm limit (0xFFFF = not set)
+    [14:20]  second probe: temperature, low limit, high limit, same encoding
+
+For example ``6c 41 00 01 01 e4 01 00 09 c4 ff ff ...`` is battery 100 %,
+probes 1 & 2 with only probe 1 plugged in, probe 1 at 25.00 C.
+
+Home Assistant's built-in ``govee_ble`` parser only knows the 0x00 layout and
+decodes 0x41 frames with it anyway (probe 1 comes out as 484 C, -32284 C or
+16868 C depending on the pair, with the battery at 0 %), which is where the
+erratic readings come from. This parser picks the layout by frame type,
+rejects types it does not know, and range-checks every value.
 """
 
 from __future__ import annotations
@@ -42,6 +56,7 @@ SERVICE_UUID = "00005550-0000-1000-8000-00805f9b34fb"
 
 FRAME_LENGTH = 20
 FRAME_TYPE_TEMPERATURE = 0x00
+FRAME_TYPE_TEMPERATURE_V41 = 0x41
 NO_VALUE = 0xFFFF
 
 # The probes are rated to roughly 300 C; anything outside this window is
@@ -59,6 +74,7 @@ _PAIR_FOR_SELECTOR = {
 }
 
 _PROBE_BLOCK = struct.Struct("<BHHH")  # status, temp, low, high
+_PROBE_BLOCK_V41 = struct.Struct(">HHH")  # temp, low, high
 
 
 @dataclass(frozen=True)
@@ -67,9 +83,9 @@ class ProbeReading:
 
     probe: int
     connected: bool
-    temperature: int | None
-    low_alarm: int | None
-    high_alarm: int | None
+    temperature: float | None
+    low_alarm: float | None
+    high_alarm: float | None
     status: int
 
 
@@ -124,35 +140,46 @@ def select_payload(address: str, manufacturer_data: dict[int, bytes]) -> bytes |
     return None
 
 
-def _value(raw: int) -> int | None:
+def _value(raw: int, scale: int = 1) -> float | None:
     if raw == NO_VALUE:
         return None
     signed = raw - 0x10000 if raw & 0x8000 else raw
-    if not MIN_VALID_TEMP <= signed <= MAX_VALID_TEMP:
+    value = signed / scale
+    if not MIN_VALID_TEMP <= value <= MAX_VALID_TEMP:
         raise FrameRejected(f"value {raw:#06x} out of range")
-    return signed
+    return value
 
 
-def parse_frame(data: bytes, address: str | None = None) -> H5055Frame:
-    """Decode a temperature frame or raise FrameRejected."""
+def _check_common(data: bytes, address: str | None) -> None:
     if len(data) != FRAME_LENGTH:
         raise FrameRejected(f"length {len(data)} != {FRAME_LENGTH}")
     if address is not None:
         tail = last_mac_byte(address)
         if tail is not None and data[0] != tail:
             raise FrameRejected("first byte does not match MAC address")
-    if data[1] != FRAME_TYPE_TEMPERATURE:
-        raise FrameRejected(f"frame type {data[1]:#04x}")
-    if data[18:20] != b"\x00\x00":
-        raise FrameRejected("trailer is not 0x0000")
-    selector = data[3]
+
+
+def _pair(selector: int) -> tuple[int, int]:
     pair = _PAIR_FOR_SELECTOR.get(selector & 0xC0)
     if pair is None:
         raise FrameRejected(f"unknown probe selector {selector:#04x}")
-    battery = data[2] & 0x7F
+    return pair
+
+
+def _battery(raw: int) -> int:
+    battery = raw & 0x7F
     if battery > 100:
         raise FrameRejected(f"battery {battery}")
+    return battery
 
+
+def _parse_v0(data: bytes) -> H5055Frame:
+    """Frame type 0x00: whole degrees, little endian, per-probe status."""
+    if data[18:20] != b"\x00\x00":
+        raise FrameRejected("trailer is not 0x0000")
+    selector = data[3]
+    pair = _pair(selector)
+    battery = _battery(data[2])
     probes: list[ProbeReading] = []
     for probe, offset in zip(pair, (4, 11)):
         status, temp, low, high = _PROBE_BLOCK.unpack_from(data, offset)
@@ -169,3 +196,42 @@ def parse_frame(data: bytes, address: str | None = None) -> H5055Frame:
             )
         )
     return H5055Frame(battery=battery, probes=tuple(probes))
+
+
+def _parse_v41(data: bytes) -> H5055Frame:
+    """Frame type 0x41: hundredths of a degree, big endian."""
+    battery = _battery(data[5])
+    selector = data[6]
+    pair = _pair(selector)
+    status = data[7]
+    probes: list[ProbeReading] = []
+    for probe, offset in zip(pair, (8, 14)):
+        temp, low, high = _PROBE_BLOCK_V41.unpack_from(data, offset)
+        connected = bool(selector & (1 << (probe - 1)))
+        temperature = _value(temp, 100)
+        probes.append(
+            ProbeReading(
+                probe=probe,
+                connected=connected,
+                temperature=temperature if connected else None,
+                low_alarm=_value(low, 100),
+                high_alarm=_value(high, 100),
+                status=status,
+            )
+        )
+    return H5055Frame(battery=battery, probes=tuple(probes))
+
+
+_PARSERS = {
+    FRAME_TYPE_TEMPERATURE: _parse_v0,
+    FRAME_TYPE_TEMPERATURE_V41: _parse_v41,
+}
+
+
+def parse_frame(data: bytes, address: str | None = None) -> H5055Frame:
+    """Decode a temperature frame or raise FrameRejected."""
+    _check_common(data, address)
+    parser = _PARSERS.get(data[1])
+    if parser is None:
+        raise FrameRejected(f"frame type {data[1]:#04x}")
+    return parser(data)
