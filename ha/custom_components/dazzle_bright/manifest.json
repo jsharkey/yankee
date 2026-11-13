@@ -1,0 +1,30 @@
+{
+  "domain": "dazzle_bright",
+  "name": "Dazzle Bright String Lights",
+  "bluetooth": [
+    {
+      "local_name": "LEDnetWF*",
+      "connectable": true
+    },
+    {
+      "local_name": "IOTWF*",
+      "connectable": true
+    },
+    {
+      "local_name": "IOTB*",
+      "connectable": true
+    }
+  ],
+  "codeowners": [],
+  "config_flow": true,
+  "dependencies": [
+    "bluetooth_adapters"
+  ],
+  "integration_type": "device",
+  "iot_class": "assumed_state",
+  "requirements": [
+    "bleak-retry-connector>=1.17.1",
+    "bleak>=0.17.0"
+  ],
+  "version": "0.2.0"
+}

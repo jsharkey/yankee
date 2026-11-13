@@ -1,0 +1,11 @@
+send_command:
+  target:
+    entity:
+      integration: dazzle_bright
+      domain: light
+  fields:
+    command:
+      required: true
+      example: "anim meteor --speed 70 red white"
+      selector:
+        text:

@@ -1,0 +1,65 @@
+{
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "title": "Pick your string lights",
+        "data": {
+          "address": "Device"
+        }
+      },
+      "bluetooth_confirm": {
+        "title": "Dazzle Bright string lights",
+        "description": "Set up {name}?"
+      }
+    },
+    "abort": {
+      "already_configured": "This device is already configured.",
+      "no_devices_found": "No IOTBT / LEDnetWF devices found nearby. Make sure the lights are powered and not connected to the phone app.",
+      "not_supported": "This device is not supported."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Patterns",
+        "description": "One template per line: `name: arguments`, using dazzle_multicolor.py arguments (e.g. `christmas: random red green blue purple`, `meteor: anim meteor --speed 70 red white`). Brightness comes from the light; `static` uses the LED count below unless it has its own `--points`.\n\n{error}",
+        "data": {
+          "templates": "Templates",
+          "point_count": "Number of LEDs on the string",
+          "disconnect_delay": "Keep Bluetooth connected while idle",
+          "input_select": "Follow this input_select (optional)",
+          "power_on_first": "Send power-on before patterns",
+          "blank_off": "Turn off by blanking the LEDs (no white flash)"
+        },
+        "data_description": {
+          "input_select": "When this helper changes, the template with the same name is applied. An option can also carry its own command: `name: arguments`.",
+          "power_on_first": "Off (recommended): a pattern turns the lights on by itself, like the vendor app does. Turn on only if your lights stay dark when a pattern is sent while they are off; this brings back a brief flash.",
+          "blank_off": "On (recommended): 'off' sets every LED to black and leaves the controller running, so turning on goes straight to the pattern. Off: 'off' really powers the string down, and the lights flash white on the next power-on."
+        }
+      }
+    },
+    "error": {
+      "invalid_template": "Invalid template - see the message above."
+    }
+  },
+  "entity": {
+    "select": {
+      "pattern": {
+        "name": "Pattern"
+      }
+    }
+  },
+  "services": {
+    "send_command": {
+      "name": "Send command",
+      "description": "Send any dazzle_multicolor.py command line to the lights. Brightness is taken from the light.",
+      "fields": {
+        "command": {
+          "name": "Command",
+          "description": "For example: anim fallingSnow --direction 2 white blue"
+        }
+      }
+    }
+  }
+}
