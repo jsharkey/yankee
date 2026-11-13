@@ -1,0 +1,49 @@
+# Vane controls for Midea units whose remote sends standalone Coolix vane
+# commands (B9 F5 xx). These only move the vanes; they don't resend mode,
+# setpoint or fan, so they don't interfere with the midea_ir climate.
+#   04/05 = vertical swing on/off
+#   07/08 = horizontal swing on/off
+#   2A..2E = vertical vane fixed position, top to bottom
+# The remote sends each command twice, so first and second are both set.
+
+select:
+  - platform: template
+    id: vane_vertical_$zone
+    name: "Midea $zone_friendly Vertical Vane"
+    optimistic: true
+    restore_value: true
+    options:
+      - "Swing"
+      - "Stop"
+      - "Position 1 (top)"
+      - "Position 2"
+      - "Position 3"
+      - "Position 4"
+      - "Position 5 (bottom)"
+    initial_option: "Swing"
+    set_action:
+      - remote_transmitter.transmit_coolix:
+          first: &vane_vertical_code !lambda |-
+            if (x == "Swing") return 0xB9F504;
+            if (x == "Stop") return 0xB9F505;
+            if (x == "Position 1 (top)") return 0xB9F52A;
+            if (x == "Position 2") return 0xB9F52B;
+            if (x == "Position 3") return 0xB9F52C;
+            if (x == "Position 4") return 0xB9F52D;
+            return 0xB9F52E;
+          second: *vane_vertical_code
+
+switch:
+  - platform: template
+    id: vane_horizontal_$zone
+    name: "Midea $zone_friendly Horizontal Swing"
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF
+    turn_on_action:
+      - remote_transmitter.transmit_coolix:
+          first: 0xB9F507
+          second: 0xB9F507
+    turn_off_action:
+      - remote_transmitter.transmit_coolix:
+          first: 0xB9F508
+          second: 0xB9F508

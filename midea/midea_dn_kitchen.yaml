@@ -5,3 +5,4 @@ substitutions:
 
 packages:
   auto: !include midea_ir.yaml
+  vanes: !include midea_ir_vanes.yaml
