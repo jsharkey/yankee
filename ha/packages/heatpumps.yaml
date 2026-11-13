@@ -1,0 +1,207 @@
+# ACIQ-27Z-HH-M3B heat pumps - estimated heating COP and output
+# Fitted to the NEEP ccASHP "Performance Specs" heating points (AHRI 207825579).
+#   T = outdoor dry bulb (°F), clamped to 5..47 (the range covered by the data)
+#   P = system input power (kW)
+#
+#   COP   = 2.1237 + 0.06473*T - 0.09031*P - 0.01159*T*P      (±0.07 COP vs NEEP)
+#   Btu/h = P * (8037.8 + 190.92*T - 527.47*P - 30.852*T*P)   (±290 Btu/h vs NEEP)
+#
+# Below 0.1 kW the unit is treated as off: both COP and Btu/h report 0.
+# Power sensors in W or kW, and temperature in °F or °C, are converted automatically.
+
+# Senville SENE-09EL-OH / SENE-09EL-IHH heat pump - estimated heating output and COP
+# Fitted to the NEEP ccASHP "Performance Specs" heating points (AHRI 217607367).
+#   T = outdoor dry bulb (°F), clamped to -22..47 (the range covered by the data)
+#   P = system input power (kW)
+#
+#   Btu/h = -851.522 + 6869.83*P + 142.87*T*P - 31.9245*T*P^2
+#           + 1.10515*T^2 - 0.636658*T^2*P                       (±150 Btu/h vs NEEP)
+#   COP   = Btu/h / (P * 3412.14)                                (±0.07 COP vs NEEP)
+#
+# Unlike the other units, this one's COP drops at very low load in cold weather
+# (fixed overhead dominates), which is why output is modelled first and COP derived.
+# Below 0.1 kW the unit is treated as off: both COP and Btu/h report 0.
+# Power in W or kW, and temperature in °F or °C, are converted automatically.
+
+template:
+  - sensor:
+      # ---------------- Bedrooms heat pump ACIQ-27Z-HH-M3B ----------------
+      - name: "heat_pump_bedrooms_cop"
+        unique_id: heat_pump_bedrooms_cop
+        icon: mdi:heat-pump
+        state_class: measurement
+        availability: >
+          {{ has_value('sensor.emporia_monitor_heat_pump_bedrooms_power') and has_value('sensor.temp_outdoor') }}
+        state: >
+          {% set pw = 'sensor.emporia_monitor_heat_pump_bedrooms_power' %}
+          {% set p = states(pw) | float %}
+          {% if state_attr(pw, 'unit_of_measurement') == 'W' %}{% set p = p / 1000 %}{% endif %}
+          {% set t = states('sensor.temp_outdoor') | float %}
+          {% if state_attr('sensor.temp_outdoor', 'unit_of_measurement') in ['°C', 'C'] %}
+            {% set t = t * 9 / 5 + 32 %}
+          {% endif %}
+          {% set t = [5, [t, 47] | min] | max %}
+          {% if p < 0.1 %}
+            0
+          {% else %}
+            {{ (2.1237 + 0.06473 * t - 0.09031 * p - 0.01159 * t * p) | round(2) }}
+          {% endif %}
+
+      - name: "heat_pump_bedrooms_btus"
+        unique_id: heat_pump_bedrooms_btus
+        icon: mdi:fire
+        unit_of_measurement: "BTU/h"
+        state_class: measurement
+        availability: >
+          {{ has_value('sensor.emporia_monitor_heat_pump_bedrooms_power') and has_value('sensor.temp_outdoor') }}
+        state: >
+          {% set pw = 'sensor.emporia_monitor_heat_pump_bedrooms_power' %}
+          {% set p = states(pw) | float %}
+          {% if state_attr(pw, 'unit_of_measurement') == 'W' %}{% set p = p / 1000 %}{% endif %}
+          {% set t = states('sensor.temp_outdoor') | float %}
+          {% if state_attr('sensor.temp_outdoor', 'unit_of_measurement') in ['°C', 'C'] %}
+            {% set t = t * 9 / 5 + 32 %}
+          {% endif %}
+          {% set t = [5, [t, 47] | min] | max %}
+          {% if p < 0.1 %}
+            0
+          {% else %}
+            {{ (p * (8037.8 + 190.92 * t - 527.47 * p - 30.852 * t * p)) | round(0) | int }}
+          {% endif %}
+
+      # ---------------- Living heat pump ACIQ-27Z-HH-M3B ----------------
+      - name: "heat_pump_living_cop"
+        unique_id: heat_pump_living_cop
+        icon: mdi:heat-pump
+        state_class: measurement
+        availability: >
+          {{ has_value('sensor.emporia_monitor_heat_pump_living_power') and has_value('sensor.temp_outdoor') }}
+        state: >
+          {% set pw = 'sensor.emporia_monitor_heat_pump_living_power' %}
+          {% set p = states(pw) | float %}
+          {% if state_attr(pw, 'unit_of_measurement') == 'W' %}{% set p = p / 1000 %}{% endif %}
+          {% set t = states('sensor.temp_outdoor') | float %}
+          {% if state_attr('sensor.temp_outdoor', 'unit_of_measurement') in ['°C', 'C'] %}
+            {% set t = t * 9 / 5 + 32 %}
+          {% endif %}
+          {% set t = [5, [t, 47] | min] | max %}
+          {% if p < 0.1 %}
+            0
+          {% else %}
+            {{ (2.1237 + 0.06473 * t - 0.09031 * p - 0.01159 * t * p) | round(2) }}
+          {% endif %}
+      - name: "heat_pump_living_btus"
+        unique_id: heat_pump_living_btus
+        icon: mdi:fire
+        unit_of_measurement: "BTU/h"
+        state_class: measurement
+        availability: >
+          {{ has_value('sensor.emporia_monitor_heat_pump_living_power') and has_value('sensor.temp_outdoor') }}
+        state: >
+          {% set pw = 'sensor.emporia_monitor_heat_pump_living_power' %}
+          {% set p = states(pw) | float %}
+          {% if state_attr(pw, 'unit_of_measurement') == 'W' %}{% set p = p / 1000 %}{% endif %}
+          {% set t = states('sensor.temp_outdoor') | float %}
+          {% if state_attr('sensor.temp_outdoor', 'unit_of_measurement') in ['°C', 'C'] %}
+            {% set t = t * 9 / 5 + 32 %}
+          {% endif %}
+          {% set t = [5, [t, 47] | min] | max %}
+          {% if p < 0.1 %}
+            0
+          {% else %}
+            {{ (p * (8037.8 + 190.92 * t - 527.47 * p - 30.852 * t * p)) | round(0) | int }}
+          {% endif %}
+
+      # ---------------- Basement heat pump SENE-09EL-OH ----------------
+      - name: "heat_pump_basement_cop"
+        unique_id: heat_pump_basement_cop
+        icon: mdi:heat-pump
+        state_class: measurement
+        availability: >
+          {{ has_value('sensor.emporia_monitor_heat_pump_basement_power') and has_value('sensor.temp_outdoor') }}
+        state: >
+          {% set pw = 'sensor.emporia_monitor_heat_pump_basement_power' %}
+          {% set p = states(pw) | float %}
+          {% if state_attr(pw, 'unit_of_measurement') == 'W' %}{% set p = p / 1000 %}{% endif %}
+          {% set t = states('sensor.temp_outdoor') | float %}
+          {% if state_attr('sensor.temp_outdoor', 'unit_of_measurement') in ['°C', 'C'] %}
+            {% set t = t * 9 / 5 + 32 %}
+          {% endif %}
+          {% set t = [-22, [t, 47] | min] | max %}
+          {% if p < 0.1 %}
+            0
+          {% else %}
+            {% set q = -851.522 + 6869.83 * p + 142.87 * t * p - 31.9245 * t * p * p
+                       + 1.10515 * t * t - 0.636658 * t * t * p %}
+            {{ ([q, 0] | max / (p * 3412.14)) | round(2) }}
+          {% endif %}
+      - name: "heat_pump_basement_btus"
+        unique_id: heat_pump_basement_btus
+        icon: mdi:fire
+        unit_of_measurement: "BTU/h"
+        state_class: measurement
+        availability: >
+          {{ has_value('sensor.emporia_monitor_heat_pump_basement_power') and has_value('sensor.temp_outdoor') }}
+        state: >
+          {% set pw = 'sensor.emporia_monitor_heat_pump_basement_power' %}
+          {% set p = states(pw) | float %}
+          {% if state_attr(pw, 'unit_of_measurement') == 'W' %}{% set p = p / 1000 %}{% endif %}
+          {% set t = states('sensor.temp_outdoor') | float %}
+          {% if state_attr('sensor.temp_outdoor', 'unit_of_measurement') in ['°C', 'C'] %}
+            {% set t = t * 9 / 5 + 32 %}
+          {% endif %}
+          {% set t = [-22, [t, 47] | min] | max %}
+          {% if p < 0.1 %}
+            0
+          {% else %}
+            {% set q = -851.522 + 6869.83 * p + 142.87 * t * p - 31.9245 * t * p * p
+                       + 1.10515 * t * t - 0.636658 * t * t * p %}
+            {{ [q, 0] | max | round(0) | int }}
+          {% endif %}
+
+sensor:
+  - platform: integration
+    source: sensor.heat_pump_bedrooms_btus
+    name: heat_pump_bedrooms_btus_total
+    unique_id: heat_pump_bedrooms_btus_total
+    unit_time: h
+    method: left
+    round: 0
+    max_sub_interval:
+      minutes: 5
+  - platform: integration
+    source: sensor.heat_pump_living_btus
+    name: heat_pump_living_btus_total
+    unique_id: heat_pump_living_btus_total
+    unit_time: h
+    method: left
+    round: 0
+    max_sub_interval:
+      minutes: 5
+  - platform: integration
+    source: sensor.heat_pump_basement_btus
+    name: heat_pump_basement_btus_total
+    unique_id: heat_pump_basement_btus_total
+    unit_time: h
+    method: left
+    round: 0
+    max_sub_interval:
+      minutes: 5
+
+# Daily totals, reset at local midnight.
+utility_meter:
+  heat_pump_bedrooms_btus_today:
+    unique_id: heat_pump_bedrooms_btus_today
+    name: heat_pump_bedrooms_btus_today
+    source: sensor.heat_pump_bedrooms_btus_total
+    cycle: daily
+  heat_pump_living_btus_today:
+    unique_id: heat_pump_living_btus_today
+    name: heat_pump_living_btus_today
+    source: sensor.heat_pump_living_btus_total
+    cycle: daily
+  heat_pump_basement_btus_today:
+    unique_id: heat_pump_basement_btus_today
+    name: heat_pump_basement_btus_today
+    source: sensor.heat_pump_basement_btus_total
+    cycle: daily
