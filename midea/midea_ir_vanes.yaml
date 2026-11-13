@@ -20,7 +20,7 @@ select:
       - "Position 3"
       - "Position 4"
       - "Position 5 (bottom)"
-    initial_option: "Swing"
+    initial_option: "Stop"
     set_action:
       - remote_transmitter.transmit_coolix:
           first: &vane_vertical_code !lambda |-
@@ -33,17 +33,17 @@ select:
             return 0xB9F52E;
           second: *vane_vertical_code
 
-switch:
   - platform: template
     id: vane_horizontal_$zone
-    name: "Midea $zone_friendly Horizontal Swing"
+    name: "Midea $zone_friendly Horizontal Vane"
     optimistic: true
-    restore_mode: RESTORE_DEFAULT_OFF
-    turn_on_action:
+    restore_value: true
+    options:
+      - "Swing"
+      - "Stop"
+    initial_option: "Stop"
+    set_action:
       - remote_transmitter.transmit_coolix:
-          first: 0xB9F507
-          second: 0xB9F507
-    turn_off_action:
-      - remote_transmitter.transmit_coolix:
-          first: 0xB9F508
-          second: 0xB9F508
+          first: &vane_horizontal_code !lambda |-
+            return x == "Swing" ? 0xB9F507 : 0xB9F508;
+          second: *vane_horizontal_code
