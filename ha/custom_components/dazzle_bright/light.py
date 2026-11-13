@@ -84,7 +84,8 @@ class DazzleLight(LightEntity, RestoreEntity):
     def extra_state_attributes(self) -> dict[str, Any]:
         return {
             ATTR_TEMPLATE: self._device.active_template,
-            ATTR_COMMAND: self._device.active_args,
+            ATTR_COMMAND: (self._device.bar.args() if self._device.bar
+                           else self._device.active_args),
         }
 
     async def async_turn_on(self, **kwargs: Any) -> None:

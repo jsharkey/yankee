@@ -44,6 +44,23 @@ input_select:
     options: [christmas, candy cane, meteor, "party: anim chase --speed 80 red green"]
 ```
 
+## Segment bars (IOTBT4E8)
+Some lights (product 170, e.g. `IOTBT4E8`; also 173) take one colour per
+segment instead of per-LED patterns. They're detected from their Bluetooth
+advert and set up in **segment bar** mode (you can change the mode under
+**Configure**). In that mode the device has:
+* **Light**: on/off and brightness, as above. Off blanks every segment.
+* **Night light** (switch): the `night` segments show the night colour
+  (default `ff8811`) when on, black when off.
+* **Signal** (select): colour of the `signal` segment(s). Default options are
+  black, red, yellow, green, blue and purple.
+
+The default layout is `night*8 black*9 signal`, top to bottom: 18 segments, the
+number on the IOTBT4E8. `name*N` repeats an entry, and any other entry is a fixed
+colour. Use exactly as many entries as the bar has segments. With more, the lights
+squeeze and blend them. The switch and select change the bar straight away while
+the light is on. While it's off they only take effect at the next turn-on.
+
 ## Running the script directly
 `dazzle_multicolor.py` in this folder is the same command-line
 tool, e.g. `python dazzle_multicolor.py -a <MAC> -b 60 anim meteor red white`.

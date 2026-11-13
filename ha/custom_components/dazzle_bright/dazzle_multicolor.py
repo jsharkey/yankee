@@ -36,6 +36,10 @@ Examples
   python dazzle_multicolor.py -a ... anim meteor --speed 70 red white
   python dazzle_multicolor.py -a ... anim fallingSnow --direction 2 white blue
 
+  # segment lights (e.g. product 170 IOTBT4E8, product 173 IOTBT6BA):
+  # a colour per segment (E1 03), 20 segments of red/green
+  python dazzle_multicolor.py -a ... segments --count 20 red green
+
   # symphony scene command (E1 01) - alternative animation engine
   python dazzle_multicolor.py -a ... scene 11 --speed 60 red green
 
@@ -233,6 +237,26 @@ def _color4(rgb) -> bytes:
     return bytes([0xA1, hi, lo, v])
 
 
+def build_e103_segments(colors, count: int = 0, brightness: int = 100,
+                        capture_header: bool = False, gradient: bool = False) -> bytes:
+    """
+    Symphony segment colours (symphony2.0_E1.dart::buildColorfulHEXCommand,
+    called by SymphonyColorfulCommandHandlerMixin.sendColorfulCommand):
+      E1 03 <preview> 00 <gradient> 00 <n>  n x [A1 hs_hi hs_lo v]
+    The palette is tiled across `count` segments (default: one per colour).
+    capture_header=True sends the variant from lednetwf_ble's IOTBT6BA capture
+    instead (E1 03 00 n 00 00 n): byte 3 = segment count.
+    Brightness scales each colour's value (the command has no brightness byte).
+    """
+    n = count or len(colors)
+    tiled = [colors[i % len(colors)] for i in range(n)]
+    out = bytearray([0xE1, 0x03, 0x00, n if capture_header else 0x00,
+                     0x01 if gradient else 0x00, 0x00, n])
+    for c in scale_brightness(tiled, brightness):
+        out += _color4(c)
+    return bytes(out)
+
+
 def build_e101_scene(model: int, colors, brightness: int = 100, speed: int = 50,
                      model_expand: int = 0, direction: int = 1, density: int = 100,
                      bg=(0, 0, 0), preview: bool = False) -> bytes:
@@ -341,10 +365,7 @@ async def run(args, payload: bytes | None):
         if args.timing:
             print(f"[{time.monotonic() - t0:6.2f}s] {what}", file=sys.stderr)
 
-    client = BleakClient(args.address, timeout=20)
-    mark("connecting")
-    await client.connect()
-    mark("connected")
+    client = await _connect(args, mark)
     try:
         await _send(args, client, payload, seq, framer, cap, mark)
     finally:
@@ -357,6 +378,45 @@ async def run(args, payload: bytes | None):
             mark("disconnected")
         except (asyncio.TimeoutError, Exception):
             mark("disconnect skipped (timeout)")
+
+
+async def _connect(args, mark):
+    """Scan for the device first (refreshes BlueZ's view of it), then connect
+    with a few retries. Service discovery timeouts are common on BlueZ when the
+    light is still held by another central or the link is marginal."""
+    from bleak import BleakClient, BleakScanner
+    from bleak.exc import BleakError
+
+    last = None
+    for attempt in range(1, args.attempts + 1):
+        mark(f"scanning (attempt {attempt}/{args.attempts})")
+        dev = await BleakScanner.find_device_by_address(args.address, timeout=args.scan_timeout)
+        if dev is None:
+            last = f"{args.address} not seen while scanning for {args.scan_timeout:.0f}s"
+            print(f"attempt {attempt}: {last}", file=sys.stderr)
+            continue
+        client = BleakClient(dev, timeout=args.connect_timeout)
+        mark("connecting")
+        try:
+            await client.connect()
+            mark("connected")
+            return client
+        except (asyncio.TimeoutError, BleakError, EOFError) as e:
+            last = f"{type(e).__name__}: {e}" if str(e) else type(e).__name__
+            print(f"attempt {attempt}: connect failed ({last})", file=sys.stderr)
+            try:
+                await asyncio.wait_for(client.disconnect(), timeout=1.0)
+            except Exception:
+                pass
+            await asyncio.sleep(1.0)
+    sys.stderr.write(
+        f"error: could not connect to {args.address} after {args.attempts} attempt(s): {last}\n"
+        "  - make sure nothing else holds the light (phone app, Home Assistant, lednetwf_ble);\n"
+        "    these lights accept only one connection at a time\n"
+        f"  - clear BlueZ's cached state: bluetoothctl remove {args.address}\n"
+        "  - move closer / check the RSSI with: bluetoothctl scan le\n")
+    sys.stderr.flush()
+    os._exit(2)
 
 
 async def _send(args, client, payload, seq, framer, cap, mark):
@@ -427,6 +487,12 @@ def build_parser(raise_errors: bool = False) -> argparse.ArgumentParser:
     ap.add_argument("--timing", action="store_true", help="print connect/send/disconnect timings")
     ap.add_argument("--linger", type=float, default=0.1,
                     help="seconds to wait after the last write before disconnecting (default 0.1)")
+    ap.add_argument("--attempts", type=int, default=3,
+                    help="connection attempts before giving up (default 3)")
+    ap.add_argument("--scan-timeout", type=float, default=10.0,
+                    help="seconds to scan for the device before each attempt (default 10)")
+    ap.add_argument("--connect-timeout", type=float, default=20.0,
+                    help="seconds allowed for connect + service discovery (default 20)")
     ap.add_argument("--disconnect-timeout", type=float, default=0.3,
                     help="max seconds to wait for a clean disconnect (default 0.3)")
     ap.add_argument("-b", "--brightness", type=int, default=None,
@@ -464,6 +530,16 @@ def build_parser(raise_errors: bool = False) -> argparse.ArgumentParser:
     p.add_argument("--other-mode", type=int, default=0)
     p.add_argument("--rotate", type=int, default=1)
     p.add_argument("--bg", default="off", help="background colour (default off)")
+
+    p = sub.add_parser("segments", help="E1 03: colour per segment (Symphony / segment lights)")
+    bri(p)
+    p.add_argument("--count", type=int, default=0,
+                   help="number of segments to fill, repeating the palette (default: one per colour)")
+    p.add_argument("--gradient", action="store_true",
+                   help="set the app's gradient flag (blend between colours)")
+    p.add_argument("--capture-header", action="store_true",
+                   help="send byte 3 = segment count, as in the IOTBT6BA capture")
+    p.add_argument("colors", nargs="+")
 
     p = sub.add_parser("scene", help="E1 01: symphony scene engine (alternative animations)")
     p.add_argument("items", nargs="+", metavar="MODEL [COLOR ...]",
@@ -552,6 +628,8 @@ def payload_from_args(args: argparse.Namespace) -> bytes | None:
         return build_e121_control_mode(
             model, cols, b, args.speed, args.direction,
             args.density, args.other_mode, args.rotate, parse_color(args.bg))
+    if args.cmd == "segments":
+        return build_e103_segments(cols, args.count, b, args.capture_header, args.gradient)
     if args.cmd == "scene":
         if not args.target.isdigit():
             raise CommandError(f"scene model must be a number, got {args.target!r}")

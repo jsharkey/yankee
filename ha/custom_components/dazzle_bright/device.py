@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Callable
+from dataclasses import dataclass, field
 
 from bleak.backends.device import BLEDevice
 from bleak.exc import BleakError
@@ -14,6 +15,7 @@ from homeassistant.core import HomeAssistant, callback
 
 from . import dazzle_multicolor as dm
 from .const import GATT_WRITE_UUID
+from .segments import render, segment_args
 from .templates import TemplateError, build_payload, find_template
 
 _LOGGER = logging.getLogger(__name__)
@@ -29,6 +31,27 @@ FRAGMENT_GAP = 0.03  # seconds between fragments of one message (as the script)
 # discovered devices") until the lights are heard again.
 ADVERT_WAIT = 30
 CONNECT_ATTEMPTS = 3
+
+
+@dataclass
+class SegmentBar:
+    """Segment-bar mode: layout slots plus the night/signal state they resolve to."""
+
+    slots: list[str]
+    night_color: str
+    signal_colors: list[str]
+    night_on: bool = False
+    signal: str = field(default="")
+
+    def __post_init__(self) -> None:
+        if self.signal not in self.signal_colors:
+            self.signal = self.signal_colors[0]
+
+    def args(self) -> str:
+        return segment_args(render(self.slots, self.night_on, self.night_color, self.signal))
+
+    def blank_args(self) -> str:
+        return segment_args(["black"] * len(self.slots))
 
 
 def ha_to_pct(brightness: int) -> int:
@@ -49,6 +72,7 @@ class DazzleDevice:
         disconnect_delay: int,
         power_on_first: bool = False,
         blank_off: bool = True,
+        bar: SegmentBar | None = None,
     ) -> None:
         self.hass = hass
         self.address = address
@@ -66,6 +90,9 @@ class DazzleDevice:
         # value 0 (EC 01, all black) instead of cutting power, so "on" is just
         # the next pattern and the white power-on state is never shown.
         self._blank_off = blank_off
+        # Segment-bar mode: the pattern is always built from the layout and the
+        # night switch / signal select, never from templates.
+        self.bar = bar
 
         self._client: BleakClientWithServiceCache | None = None
         self._ble_device: BLEDevice | None = None
@@ -104,7 +131,7 @@ class DazzleDevice:
         """
         if brightness is not None:
             self.brightness = brightness
-        args = self.active_args or self._fallback_args()
+        args = self.bar.args() if self.bar else (self.active_args or self._fallback_args())
         if args is None:
             await self._send(*_power(True))
         elif brightness is not None or self.is_on is not True:
@@ -112,17 +139,39 @@ class DazzleDevice:
             if self._power_on_first and self.is_on is not True:
                 await self._send(*_power(True))
             await self._send(*payload)
-            if self.active_args is None:
+            if self.active_args is None and not self.bar:
                 self.active_args = args
         self.is_on = True
         self._notify()
 
     async def async_turn_off(self) -> None:
         if self._blank_off:
-            await self._send(*build_payload(BLANK_ARGS, None, self.point_count))
+            blank = self.bar.blank_args() if self.bar else BLANK_ARGS
+            await self._send(*build_payload(blank, None, self.point_count))
         else:
             await self._send(*_power(False))
         self.is_on = False
+        self._notify()
+
+    async def async_set_night(self, on: bool) -> None:
+        """Night switch (segment bar). Shown at once if the light is on, else at next turn-on."""
+        assert self.bar is not None
+        self.bar.night_on = on
+        await self._refresh_bar()
+
+    async def async_set_signal(self, color: str) -> None:
+        """Signal select (segment bar). Shown at once if the light is on, else at next turn-on."""
+        assert self.bar is not None
+        if color not in self.bar.signal_colors:
+            raise TemplateError(f"unknown signal colour {color!r}")
+        self.bar.signal = color
+        await self._refresh_bar()
+
+    async def _refresh_bar(self) -> None:
+        assert self.bar is not None
+        if self.is_on:
+            await self._send(*build_payload(self.bar.args(), ha_to_pct(self.brightness),
+                                            self.point_count))
         self._notify()
 
     async def async_apply_template(self, name: str) -> None:

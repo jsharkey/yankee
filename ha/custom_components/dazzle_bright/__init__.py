@@ -18,18 +18,28 @@ from .const import (
     CONF_INPUT_SELECT,
     CONF_POWER_ON_FIRST,
     CONF_BLANK_OFF,
+    CONF_LAYOUT,
+    CONF_MODE,
+    CONF_NIGHT_COLOR,
     CONF_POINT_COUNT,
+    CONF_SIGNAL_COLORS,
     CONF_TEMPLATES,
     DEFAULT_DISCONNECT_DELAY,
+    DEFAULT_LAYOUT,
+    DEFAULT_NIGHT_COLOR,
     DEFAULT_POINT_COUNT,
+    DEFAULT_SIGNAL_COLORS,
     DEFAULT_TEMPLATES,
+    MODE_SEGMENTS,
 )
-from .device import DazzleDevice
+from .device import DazzleDevice, SegmentBar
+from .segments import LayoutError, check_color, parse_color_list, parse_layout
 from .templates import TemplateError, find_template, parse_templates
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS: list[Platform] = [Platform.LIGHT, Platform.SELECT]
+# The switch platform only adds entities in segment-bar mode.
+PLATFORMS: list[Platform] = [Platform.LIGHT, Platform.SELECT, Platform.SWITCH]
 
 type DazzleConfigEntry = ConfigEntry[DazzleDevice]
 
@@ -51,6 +61,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: DazzleConfigEntry) -> bo
         int(entry.options.get(CONF_DISCONNECT_DELAY, DEFAULT_DISCONNECT_DELAY)),
         bool(entry.options.get(CONF_POWER_ON_FIRST, False)),
         bool(entry.options.get(CONF_BLANK_OFF, True)),
+        _segment_bar(entry),
     )
     entry.runtime_data = device
     entry.async_on_unload(device.async_start())
@@ -58,11 +69,28 @@ async def async_setup_entry(hass: HomeAssistant, entry: DazzleConfigEntry) -> bo
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     # Optional: follow an input_select helper whose options are template names.
-    if input_select := entry.options.get(CONF_INPUT_SELECT):
+    if not device.bar and (input_select := entry.options.get(CONF_INPUT_SELECT)):
         entry.async_on_unload(_follow_input_select(hass, device, input_select))
 
     entry.async_on_unload(entry.add_update_listener(_async_options_updated))
     return True
+
+
+def _segment_bar(entry: DazzleConfigEntry) -> SegmentBar | None:
+    """Segment-bar settings for this entry, or None in pattern mode."""
+    opts = entry.options
+    if opts.get(CONF_MODE) != MODE_SEGMENTS:
+        return None
+    try:
+        return SegmentBar(
+            parse_layout(opts.get(CONF_LAYOUT, DEFAULT_LAYOUT)),
+            check_color(opts.get(CONF_NIGHT_COLOR, DEFAULT_NIGHT_COLOR)),
+            parse_color_list(opts.get(CONF_SIGNAL_COLORS, DEFAULT_SIGNAL_COLORS)),
+        )
+    except LayoutError as err:
+        _LOGGER.error("%s: invalid segment settings (%s); using defaults", entry.title, err)
+        return SegmentBar(parse_layout(DEFAULT_LAYOUT), DEFAULT_NIGHT_COLOR,
+                          parse_color_list(DEFAULT_SIGNAL_COLORS))
 
 
 def _follow_input_select(hass: HomeAssistant, device: DazzleDevice, entity_id: str):

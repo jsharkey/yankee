@@ -22,31 +22,62 @@
   "options": {
     "step": {
       "init": {
+        "title": "Dazzle Bright",
+        "description": "Pick how this device is controlled. String lights (e.g. IOTBTCC3) use pattern templates; segment bars (e.g. IOTBT4E8) get a night-light switch and a signal-colour select.",
+        "data": {
+          "mode": "Device type",
+          "disconnect_delay": "Keep Bluetooth connected while idle",
+          "power_on_first": "Send power-on before patterns",
+          "blank_off": "Turn off by blanking the LEDs (no white flash)"
+        },
+        "data_description": {
+          "power_on_first": "Off (recommended): a pattern turns the lights on by itself, like the vendor app does. Turn on only if your lights stay dark when a pattern is sent while they are off; this brings back a brief flash.",
+          "blank_off": "On (recommended): 'off' sets every LED to black and leaves the controller running, so turning on goes straight to the pattern. Off: 'off' really powers the string down, and the lights flash white on the next power-on."
+        }
+      },
+      "patterns": {
         "title": "Patterns",
         "description": "One template per line: `name: arguments`, using dazzle_multicolor.py arguments (e.g. `christmas: random red green blue purple`, `meteor: anim meteor --speed 70 red white`). Brightness comes from the light; `static` uses the LED count below unless it has its own `--points`.\n\n{error}",
         "data": {
           "templates": "Templates",
           "point_count": "Number of LEDs on the string",
-          "disconnect_delay": "Keep Bluetooth connected while idle",
-          "input_select": "Follow this input_select (optional)",
-          "power_on_first": "Send power-on before patterns",
-          "blank_off": "Turn off by blanking the LEDs (no white flash)"
+          "input_select": "Follow this input_select (optional)"
         },
         "data_description": {
-          "input_select": "When this helper changes, the template with the same name is applied. An option can also carry its own command: `name: arguments`.",
-          "power_on_first": "Off (recommended): a pattern turns the lights on by itself, like the vendor app does. Turn on only if your lights stay dark when a pattern is sent while they are off; this brings back a brief flash.",
-          "blank_off": "On (recommended): 'off' sets every LED to black and leaves the controller running, so turning on goes straight to the pattern. Off: 'off' really powers the string down, and the lights flash white on the next power-on."
+          "input_select": "When this helper changes, the template with the same name is applied. An option can also carry its own command: `name: arguments`."
+        }
+      },
+      "segments": {
+        "title": "Segment bar",
+        "description": "The layout gives one entry per segment, top to bottom; `name*N` repeats an entry. `night` shows the night colour while the Night light switch is on (black when off), `signal` shows the colour picked in the Signal select, and anything else is a fixed colour name or RRGGBB. Use exactly as many entries as the bar has segments (18 on the IOTBT4E8): with more, the lights squeeze and blend them.\n\n{error}",
+        "data": {
+          "layout": "Layout",
+          "night_color": "Night colour",
+          "signal_colors": "Signal colours"
+        },
+        "data_description": {
+          "night_color": "A colour name or RRGGBB, e.g. ff8811.",
+          "signal_colors": "Comma-separated options for the Signal select, e.g. black, red, yellow, green, blue, purple."
         }
       }
     },
     "error": {
-      "invalid_template": "Invalid template - see the message above."
+      "invalid_template": "Invalid template - see the message above.",
+      "invalid_segments": "Invalid setting - see the message above."
     }
   },
   "entity": {
     "select": {
       "pattern": {
         "name": "Pattern"
+      },
+      "signal": {
+        "name": "Signal"
+      }
+    },
+    "switch": {
+      "night": {
+        "name": "Night light"
       }
     }
   },
@@ -59,6 +90,14 @@
           "name": "Command",
           "description": "For example: anim fallingSnow --direction 2 white blue"
         }
+      }
+    }
+  },
+  "selector": {
+    "mode": {
+      "options": {
+        "patterns": "String lights (pattern templates)",
+        "segments": "Segment bar (night light + signal)"
       }
     }
   }

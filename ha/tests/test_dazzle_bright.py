@@ -170,3 +170,65 @@ def test_blank_turns_every_led_off():
     assert payload[:2] == bytes([0xEC, 0x01]) and not any(payload[4:])
     color_off, _, _ = dm.build_command("color off")
     assert color_off[6] == 1
+
+
+# --- segment bar (IOTBT4E8, product 170: 18 segments, E1 03) -----------------
+
+segments = importlib.import_module("dazzle_bright_under_test.segments")
+
+
+def test_segments_command_header_and_colours():
+    payload, cmd_id, _ = dm.build_command("-b 50 segments --count 3 red green")
+    assert cmd_id == 0x0B
+    assert payload.hex(" ") == (
+        "e1 03 00 00 00 00 03 a1 00 64 32 a1 3c 64 32 a1 00 64 32"
+    )
+
+
+def test_default_layout_is_18_segments():
+    slots = segments.parse_layout("night*8 black*9 signal")
+    assert len(slots) == 18
+    assert slots[:8] == ["night"] * 8 and slots[8:17] == ["black"] * 9
+    assert slots[17] == "signal"
+
+
+@pytest.mark.parametrize("night_on, night", [(True, "ff8811"), (False, "black")])
+def test_render_night_and_signal(night_on, night):
+    slots = segments.parse_layout("night*8 black*9 signal")
+    colors = segments.render(slots, night_on, "ff8811", "green")
+    assert colors == [night] * 8 + ["black"] * 9 + ["green"]
+    args = segments.segment_args(colors)
+    assert args.startswith("segments --count 18 ")
+    payload, _, _ = dm.build_command(args)
+    assert payload[6] == 18 and len(payload) == 7 + 18 * 4
+    # black segments have value 0, the signal segment is green
+    assert payload[7 + 8 * 4 + 3] == 0
+    assert payload[7 + 17 * 4 :].hex(" ") == "a1 3c 64 64"
+
+
+@pytest.mark.parametrize("text, message", [
+    ("", "empty"),
+    ("night*0", "repeat"),
+    ("night*x", "repeat"),
+    ("night*8 notacolour", "bad colour"),
+])
+def test_bad_layouts(text, message):
+    with pytest.raises(segments.LayoutError, match=message):
+        segments.parse_layout(text)
+
+
+def test_signal_colour_list():
+    assert segments.parse_color_list("black, red, yellow,green blue purple, red") == [
+        "black", "red", "yellow", "green", "blue", "purple"]
+    with pytest.raises(segments.LayoutError):
+        segments.parse_color_list("red, nope")
+
+
+def test_product_id_from_advert():
+    sd = {"00005a00-0000-1000-8000-00805f9b34fb":
+          bytes.fromhex("80 07 08 65 f0 29 b4 e8 00 aa 26 0a 01 06")}
+    assert segments.product_id_from_service_data(sd) == 170
+    sd = {"00005a02-0000-1000-8000-00805f9b34fb":
+          bytes.fromhex("5b 07 08 65 f0 41 5c c3 00 c5 43 08 01 28")}
+    assert segments.product_id_from_service_data(sd) == 197
+    assert segments.product_id_from_service_data({}) is None

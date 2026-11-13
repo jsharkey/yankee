@@ -11,6 +11,17 @@ CONF_INPUT_SELECT: Final = "input_select"
 CONF_DISCONNECT_DELAY: Final = "disconnect_delay"
 CONF_POWER_ON_FIRST: Final = "power_on_first"
 CONF_BLANK_OFF: Final = "blank_off"
+CONF_MODE: Final = "mode"
+CONF_LAYOUT: Final = "layout"
+CONF_NIGHT_COLOR: Final = "night_color"
+CONF_SIGNAL_COLORS: Final = "signal_colors"
+
+MODE_PATTERNS: Final = "patterns"   # string lights: templates (IOTBTCC3, product 197)
+MODE_SEGMENTS: Final = "segments"   # segment bar: night + signal (IOTBT4E8, product 170)
+
+DEFAULT_LAYOUT: Final = "night*8 black*9 signal"
+DEFAULT_NIGHT_COLOR: Final = "ff8811"
+DEFAULT_SIGNAL_COLORS: Final = "black, red, yellow, green, blue, purple"
 
 DEFAULT_POINT_COUNT: Final = 100
 DEFAULT_DISCONNECT_DELAY: Final = 60  # seconds an idle BLE link is kept open
