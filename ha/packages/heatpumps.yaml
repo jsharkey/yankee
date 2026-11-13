@@ -23,7 +23,27 @@
 # Below 0.1 kW the unit is treated as off: both COP and Btu/h report 0.
 # Power in W or kW, and temperature in °F or °C, are converted automatically.
 
+# Heating-mode guess (binary_sensor.heat_pump_heating_mode):
+#   on when sensor.temp_outdoor is colder than sensor.temp_avg (indoor average).
+#   The comparison must hold for 10 minutes before it flips (delay_on/off),
+#   so it doesn't chatter when outdoor and indoor temps are close.
+#   All COP and BTU sensors below are unavailable while it is off, so the
+#   BTU totals and daily meters only accumulate during heating.
+
 template:
+  - binary_sensor:
+      - name: "heat_pump_heating_mode"
+        unique_id: heat_pump_heating_mode
+        icon: mdi:sun-snowflake-variant
+        delay_on:
+          minutes: 10
+        delay_off:
+          minutes: 10
+        availability: >
+          {{ has_value('sensor.temp_outdoor') and has_value('sensor.temp_avg') }}
+        state: >
+          {{ states('sensor.temp_outdoor') | float < states('sensor.temp_avg') | float }}
+
   - sensor:
       # ---------------- Bedrooms heat pump ACIQ-27Z-HH-M3B ----------------
       - name: "heat_pump_bedrooms_cop"
@@ -31,7 +51,8 @@ template:
         icon: mdi:heat-pump
         state_class: measurement
         availability: >
-          {{ has_value('sensor.emporia_monitor_heat_pump_bedrooms_power') and has_value('sensor.temp_outdoor') }}
+          {{ has_value('sensor.emporia_monitor_heat_pump_bedrooms_power') and has_value('sensor.temp_outdoor')
+             and is_state('binary_sensor.heat_pump_heating_mode', 'on') }}
         state: >
           {% set pw = 'sensor.emporia_monitor_heat_pump_bedrooms_power' %}
           {% set p = states(pw) | float %}
@@ -53,7 +74,8 @@ template:
         unit_of_measurement: "BTU/h"
         state_class: measurement
         availability: >
-          {{ has_value('sensor.emporia_monitor_heat_pump_bedrooms_power') and has_value('sensor.temp_outdoor') }}
+          {{ has_value('sensor.emporia_monitor_heat_pump_bedrooms_power') and has_value('sensor.temp_outdoor')
+             and is_state('binary_sensor.heat_pump_heating_mode', 'on') }}
         state: >
           {% set pw = 'sensor.emporia_monitor_heat_pump_bedrooms_power' %}
           {% set p = states(pw) | float %}
@@ -75,7 +97,8 @@ template:
         icon: mdi:heat-pump
         state_class: measurement
         availability: >
-          {{ has_value('sensor.emporia_monitor_heat_pump_living_power') and has_value('sensor.temp_outdoor') }}
+          {{ has_value('sensor.emporia_monitor_heat_pump_living_power') and has_value('sensor.temp_outdoor')
+             and is_state('binary_sensor.heat_pump_heating_mode', 'on') }}
         state: >
           {% set pw = 'sensor.emporia_monitor_heat_pump_living_power' %}
           {% set p = states(pw) | float %}
@@ -96,7 +119,8 @@ template:
         unit_of_measurement: "BTU/h"
         state_class: measurement
         availability: >
-          {{ has_value('sensor.emporia_monitor_heat_pump_living_power') and has_value('sensor.temp_outdoor') }}
+          {{ has_value('sensor.emporia_monitor_heat_pump_living_power') and has_value('sensor.temp_outdoor')
+             and is_state('binary_sensor.heat_pump_heating_mode', 'on') }}
         state: >
           {% set pw = 'sensor.emporia_monitor_heat_pump_living_power' %}
           {% set p = states(pw) | float %}
@@ -118,7 +142,8 @@ template:
         icon: mdi:heat-pump
         state_class: measurement
         availability: >
-          {{ has_value('sensor.emporia_monitor_heat_pump_basement_power') and has_value('sensor.temp_outdoor') }}
+          {{ has_value('sensor.emporia_monitor_heat_pump_basement_power') and has_value('sensor.temp_outdoor')
+             and is_state('binary_sensor.heat_pump_heating_mode', 'on') }}
         state: >
           {% set pw = 'sensor.emporia_monitor_heat_pump_basement_power' %}
           {% set p = states(pw) | float %}
@@ -141,7 +166,8 @@ template:
         unit_of_measurement: "BTU/h"
         state_class: measurement
         availability: >
-          {{ has_value('sensor.emporia_monitor_heat_pump_basement_power') and has_value('sensor.temp_outdoor') }}
+          {{ has_value('sensor.emporia_monitor_heat_pump_basement_power') and has_value('sensor.temp_outdoor')
+             and is_state('binary_sensor.heat_pump_heating_mode', 'on') }}
         state: >
           {% set pw = 'sensor.emporia_monitor_heat_pump_basement_power' %}
           {% set p = states(pw) | float %}
