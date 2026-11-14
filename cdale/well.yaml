@@ -7,16 +7,11 @@ esp8266:
   framework:
     version: recommended
 
+packages:
+  common: !include common.yaml
+
 api:
   reboot_timeout: 3h
-
-ota:
-  platform: esphome
-
-wifi:
-  fast_connect: true
-  ssid: !secret wifi_ssid
-  password: !secret wifi_password
 
 logger:
   baud_rate: 0

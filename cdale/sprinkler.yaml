@@ -35,14 +35,8 @@ status_led:
   pin:
     number: 23
 
-api:
-ota:
-  platform: esphome
-
-wifi:
-  fast_connect: true
-  ssid: !secret wifi_ssid
-  password: !secret wifi_password
+packages:
+  common: !include common.yaml
 
 logger:
   baud_rate: 0
