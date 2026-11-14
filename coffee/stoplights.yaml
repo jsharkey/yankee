@@ -1,0 +1,234 @@
+# Stoplights: IOTBT4E8 segment bar ("Dazzle Bright", Zengge product 170),
+# driven straight from an ESP32 over BLE instead of the dazzle_bright HA component.
+#
+# Entities: Light (on/off + brightness), Night Light and Rainbow switches,
+# Signal select. Every change sends the whole bar as one E1 03 command:
+#   night x8 (ff8811 when on, black when off), black x9, signal x1
+# Rainbow overrides both: red, orange, yellow, green, blue, purple, 3 each.
+# Off blanks all segments (a real power-off flashes white on the next power-on).
+#
+# The ESP32 holds the light's only BLE connection: remove the light from the
+# dazzle_bright / lednetwf_ble integrations and close the phone app.
+
+substitutions:
+  friendly_name: Stoplights
+  stoplight_mac: "08:65:F0:29:B4:E8"
+  night_segments: "8"       # top of the bar
+  gap_segments: "9"         # black between night and signal
+  night_color: "0xFF8811"
+  signal_yellow: "0xFF4400" # what "yellow" sends
+  packet_size: "20"         # BLE packet size; 20 fits the default 23-byte MTU
+
+esphome:
+  name: stoplights
+  friendly_name: ${friendly_name}
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+    version: recommended
+
+logger:
+
+api:
+  encryption:
+    key: !secret api_key
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+wifi:
+  min_auth_mode: WPA2
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+esp32_ble_tracker:
+  scan_parameters:
+    active: false
+
+ble_client:
+  - mac_address: ${stoplight_mac}
+    id: stoplight_ble
+    on_connect:
+      # services are discovered by now; give the light a moment, then
+      # re-send the current state (covers the light losing power)
+      - delay: 1s
+      - script.execute: bar_push
+    on_disconnect:
+      - logger.log: "stoplight disconnected; will reconnect"
+
+globals:
+  - id: bar_level        # light level 0..1 (0 = off)
+    type: float
+    initial_value: "0"
+  - id: bar_seq          # packet sequence number
+    type: uint8_t
+    initial_value: "0"
+  - id: bar_frames       # BLE packets of the command being sent
+    type: std::vector<std::vector<uint8_t>>
+  - id: bar_frame_idx
+    type: size_t
+    initial_value: "0"
+
+script:
+  - id: bar_push
+    mode: restart
+    then:
+      - lambda: |-
+            // Build the E1 03 segment command for the current state and split it into
+            // BLE packets (Zengge "v0" framing, ble_version < 8), into id(bar_frames).
+            const int pct = id(bar_level) <= 0.0f ? 0 : std::max(1, (int) nearbyint(id(bar_level) * 100.0));
+            const uint32_t BLACK = 0x000000;
+            std::vector<uint32_t> segs;
+            if (pct == 0) {
+              // light off: blank every segment (a real power-off makes it flash white on power-on)
+              segs.assign(${night_segments} + ${gap_segments} + 1, BLACK);
+            } else if (id(bar_rainbow).state) {
+              const uint32_t rainbow[6] = {0xFF0000, 0xFF6400, 0xFFFF00, 0x00FF00, 0x0000FF, 0xA000FF};
+              const int n = ${night_segments} + ${gap_segments} + 1;
+              for (int i = 0; i < n; i++) segs.push_back(rainbow[i * 6 / n]);
+            } else {
+              const uint32_t night = id(bar_night).state ? ${night_color} : BLACK;
+              uint32_t signal = BLACK;
+              const std::string opt = id(bar_signal).current_option().str();
+              if (opt == "red") signal = 0xFF0000;
+              else if (opt == "yellow") signal = ${signal_yellow};
+              else if (opt == "green") signal = 0x00FF00;
+              else if (opt == "blue") signal = 0x0000FF;
+              else if (opt == "purple") signal = 0xA000FF;
+              segs.assign(${night_segments}, night);
+              segs.insert(segs.end(), ${gap_segments}, BLACK);
+              segs.push_back(signal);
+            }
+
+            // E1 03 <preview> 00 <gradient> 00 <n>, then n x [A1 hs_hi hs_lo v]
+            // hs = (hue << 7) | sat; brightness scales each RGB channel first.
+            std::vector<uint8_t> p = {0xE1, 0x03, 0x00, 0x00, 0x00, 0x00, (uint8_t) segs.size()};
+            // (nearbyint = round-half-even, matching dazzle_multicolor.py)
+            const double k = (pct == 0 ? 100 : pct) / 100.0;
+            for (uint32_t rgb : segs) {
+              const double r = nearbyint(((rgb >> 16) & 0xFF) * k) / 255.0;
+              const double g = nearbyint(((rgb >> 8) & 0xFF) * k) / 255.0;
+              const double b = nearbyint((rgb & 0xFF) * k) / 255.0;
+              const double mx = std::max(r, std::max(g, b)), mn = std::min(r, std::min(g, b)), d = mx - mn;
+              double h = 0;
+              if (d > 0) {
+                if (mx == r) h = fmod((g - b) / d, 6.0);
+                else if (mx == g) h = (b - r) / d + 2.0;
+                else h = (r - g) / d + 4.0;
+                h *= 60.0;
+                if (h < 0) h += 360.0;
+              }
+              const int hue = ((int) nearbyint(h)) % 360;
+              const int sat = mx > 0 ? (int) nearbyint(d / mx * 100.0) : 0;
+              const int val = (int) nearbyint(mx * 100.0);
+              const uint16_t hs = ((hue & 0x1FF) << 7) | (sat & 0x7F);
+              p.insert(p.end(), {0xA1, (uint8_t) (hs >> 8), (uint8_t) (hs & 0xFF), (uint8_t) val});
+            }
+
+            // Framing: single packet "00 seq 80 00 len_hi len_lo len+1 cmd", or
+            // first "40 seq 00 00 len_hi len_lo max-7 cmd" + "40 seq idx_hi idx_lo n" (last idx | 0x8000).
+            const uint8_t cmd = 0x0B;
+            const int max_len = ${packet_size};
+            const int L = p.size();
+            const uint8_t seq = ++id(bar_seq);
+            auto &frames = id(bar_frames);
+            frames.clear();
+            if (L <= max_len - 8) {
+              std::vector<uint8_t> f = {0x00, seq, 0x80, 0x00, (uint8_t) (L >> 8), (uint8_t) L, (uint8_t) (L + 1), cmd};
+              f.insert(f.end(), p.begin(), p.end());
+              frames.push_back(f);
+            } else {
+              const int first = max_len - 8;
+              std::vector<uint8_t> f = {0x40, seq, 0x00, 0x00, (uint8_t) (L >> 8), (uint8_t) L, (uint8_t) (max_len - 7), cmd};
+              f.insert(f.end(), p.begin(), p.begin() + first);
+              frames.push_back(f);
+              int pos = first, idx = 1;
+              while (pos < L) {
+                const int n = std::min(L - pos, max_len - 5);
+                const uint16_t seg = (pos + n >= L) ? (idx | 0x8000) : idx;
+                std::vector<uint8_t> c = {0x40, seq, (uint8_t) (seg >> 8), (uint8_t) seg, (uint8_t) n};
+                c.insert(c.end(), p.begin() + pos, p.begin() + pos + n);
+                frames.push_back(c);
+                pos += n;
+                idx++;
+              }
+            }
+            id(bar_frame_idx) = 0;
+      # write the packets 30 ms apart, like the phone app / dazzle_multicolor.py
+      - while:
+          condition:
+            lambda: return id(bar_frame_idx) < id(bar_frames).size();
+          then:
+            - lambda: |-
+                if (!id(stoplight_ble).connected()) {
+                  ESP_LOGW("stoplights", "not connected; state will be sent on connect");
+                  id(bar_frame_idx) = id(bar_frames).size();
+                  return;
+                }
+                auto *chr = id(stoplight_ble).get_characteristic(0xFFFF, 0xFF01);
+                if (chr == nullptr) {
+                  ESP_LOGE("stoplights", "write characteristic ffff/ff01 not found");
+                  id(bar_frame_idx) = id(bar_frames).size();
+                  return;
+                }
+                auto &f = id(bar_frames)[id(bar_frame_idx)++];
+                char hex[format_hex_pretty_size(255)];
+                ESP_LOGD("stoplights", "write %s", format_hex_pretty_to(hex, f, ' '));
+                chr->write_value(f.data(), f.size(), ESP_GATT_WRITE_TYPE_NO_RSP);
+            - delay: 30ms
+
+output:
+  - platform: template
+    id: bar_output
+    type: float
+    write_action:
+      - globals.set:
+          id: bar_level
+          value: !lambda return state;
+      - script.execute: bar_push
+
+light:
+  - platform: monochromatic
+    name: Light
+    id: bar_light
+    output: bar_output
+    gamma_correct: 1.0             # brightness maps straight to the bar's 1-100 %
+    default_transition_length: 0s  # one command per change, no fades
+    restore_mode: RESTORE_DEFAULT_OFF
+
+switch:
+  - platform: template
+    name: Night Light
+    id: bar_night
+    icon: mdi:weather-night
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF
+    on_turn_on:
+      - script.execute: bar_push
+    on_turn_off:
+      - script.execute: bar_push
+  - platform: template
+    name: Rainbow
+    id: bar_rainbow
+    icon: mdi:looks
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF
+    on_turn_on:
+      - script.execute: bar_push
+    on_turn_off:
+      - script.execute: bar_push
+
+select:
+  - platform: template
+    name: Signal
+    id: bar_signal
+    icon: mdi:traffic-light
+    optimistic: true
+    restore_value: true
+    options: [black, red, yellow, green, blue, purple]
+    initial_option: black
+    on_value:
+      - script.execute: bar_push
