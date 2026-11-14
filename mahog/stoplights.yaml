@@ -3,11 +3,16 @@
 # dazzle_bright HA component. One set of controls drives all three bars
 # identically.
 #
-# Entities: Light (on/off + brightness), Night Light and Rainbow switches,
-# Signal select. Every change sends the whole bar as one E1 03 command:
-#   night x8 (ff8811 when on, black when off), black x9, signal x1
-# Rainbow overrides both: red, orange, yellow, green, blue, purple, 3 each.
-# Off blanks all segments (a real power-off flashes white on the next power-on).
+# Entities:
+#   Night Light (light, brightness): the top 8 segments in night_color. Changes
+#     fade in 10 steps, one per second.
+#   Signal (light, brightness + RGB colour): the bottom segment.
+#   Rainbow (button): red, orange, yellow, green, blue, purple, 3 segments
+#     each, at full brightness. Any change to Night Light or Signal leaves it.
+# Every change sends the whole bar as one E1 03 command:
+#   night x8, black x9, signal x1
+# With both lights off every segment is black (the bars are never powered off:
+# a real power-off flashes white on the next power-on).
 #
 # Reliability: the ESP32 keeps a permanent connection to every bar (one BLE
 # slot each), reconnects on its own, re-sends the state to a bar as soon as it
@@ -27,7 +32,7 @@ substitutions:
   night_segments: "8"       # top of the bar
   gap_segments: "9"         # black between night and signal
   night_color: "0xFF8811"
-  signal_yellow: "0xFF4400" # what "yellow" sends
+  night_fade_steps: "10"    # Night Light changes take this many 1 s steps
   packet_size: "240"        # BLE packet size: a whole command fits in one packet
                             # (bars negotiate a 512-byte MTU; use "20" for a 23-byte one)
 
@@ -102,11 +107,31 @@ interval:
     then:
       - lambda: id(bar_pending) |= 7;
       - script.execute: bar_push
+  # Night Light fade: each second, move 1/steps-left of the way to the target.
+  - interval: 1s
+    then:
+      - lambda: |-
+          if (id(night_steps) <= 0) return;
+          id(night_now) += (id(night_target) - id(night_now)) / id(night_steps);
+          if (--id(night_steps) == 0) id(night_now) = id(night_target);
+          if (!id(rainbow_on)) id(bar_changed).execute();
 
 globals:
-  - id: bar_level        # light level 0..1 (0 = off)
+  - id: night_target     # Night Light level 0..1 it is fading to (0 = off)
     type: float
     initial_value: "0"
+  - id: night_now        # Night Light level currently shown
+    type: float
+    initial_value: "0"
+  - id: night_steps      # fade steps left
+    type: int
+    initial_value: "0"
+  - id: signal_rgb       # Signal colour, brightness applied, 0..1 per channel
+    type: std::array<float, 3>
+    initial_value: "{0, 0, 0}"
+  - id: rainbow_on
+    type: bool
+    initial_value: "false"
   - id: bar_seq          # packet sequence number
     type: uint8_t
     initial_value: "0"
@@ -173,39 +198,33 @@ script:
 
             // Build the E1 03 segment command for the current state and split it into
             // BLE packets (Zengge "v0" framing, ble_version < 8), into id(bar_frames).
-            const int pct = id(bar_level) <= 0.0f ? 0 : std::max(1, (int) nearbyint(id(bar_level) * 100.0));
-            const uint32_t BLACK = 0x000000;
+            // One colour per segment, brightness already applied (0xRRGGBB).
+            const int n_segs = ${night_segments} + ${gap_segments} + 1;
+            auto scale = [](uint32_t rgb, double k) -> uint32_t {
+              // (nearbyint = round-half-even, matching dazzle_multicolor.py)
+              return ((uint32_t) nearbyint(((rgb >> 16) & 0xFF) * k) << 16) |
+                     ((uint32_t) nearbyint(((rgb >> 8) & 0xFF) * k) << 8) | (uint32_t) nearbyint((rgb & 0xFF) * k);
+            };
             std::vector<uint32_t> segs;
-            if (pct == 0) {
-              // light off: blank every segment (a real power-off makes it flash white on power-on)
-              segs.assign(${night_segments} + ${gap_segments} + 1, BLACK);
-            } else if (id(bar_rainbow).state) {
+            if (id(rainbow_on)) {
               const uint32_t rainbow[6] = {0xFF0000, 0xFF6400, 0xFFFF00, 0x00FF00, 0x0000FF, 0xA000FF};
-              const int n = ${night_segments} + ${gap_segments} + 1;
-              for (int i = 0; i < n; i++) segs.push_back(rainbow[i * 6 / n]);
+              for (int i = 0; i < n_segs; i++) segs.push_back(rainbow[i * 6 / n_segs]);
             } else {
-              const uint32_t night = id(bar_night).state ? ${night_color} : BLACK;
-              uint32_t signal = BLACK;
-              const std::string opt = id(bar_signal).current_option().str();
-              if (opt == "red") signal = 0xFF0000;
-              else if (opt == "yellow") signal = ${signal_yellow};
-              else if (opt == "green") signal = 0x00FF00;
-              else if (opt == "blue") signal = 0x0000FF;
-              else if (opt == "purple") signal = 0xA000FF;
-              segs.assign(${night_segments}, night);
-              segs.insert(segs.end(), ${gap_segments}, BLACK);
+              const auto &c = id(signal_rgb);
+              const uint32_t signal = ((uint32_t) nearbyint(c[0] * 255.0) << 16) |
+                                      ((uint32_t) nearbyint(c[1] * 255.0) << 8) | (uint32_t) nearbyint(c[2] * 255.0);
+              segs.assign(${night_segments}, scale(${night_color}, id(night_now)));
+              segs.insert(segs.end(), ${gap_segments}, 0x000000);
               segs.push_back(signal);
             }
 
             // E1 03 <preview> 00 <gradient> 00 <n>, then n x [A1 hs_hi hs_lo v]
-            // hs = (hue << 7) | sat; brightness scales each RGB channel first.
+            // with hs = (hue << 7) | sat and v = 0..100.
             std::vector<uint8_t> p = {0xE1, 0x03, 0x00, 0x00, 0x00, 0x00, (uint8_t) segs.size()};
-            // (nearbyint = round-half-even, matching dazzle_multicolor.py)
-            const double k = (pct == 0 ? 100 : pct) / 100.0;
             for (uint32_t rgb : segs) {
-              const double r = nearbyint(((rgb >> 16) & 0xFF) * k) / 255.0;
-              const double g = nearbyint(((rgb >> 8) & 0xFF) * k) / 255.0;
-              const double b = nearbyint((rgb & 0xFF) * k) / 255.0;
+              const double r = ((rgb >> 16) & 0xFF) / 255.0;
+              const double g = ((rgb >> 8) & 0xFF) / 255.0;
+              const double b = (rgb & 0xFF) / 255.0;
               const double mx = std::max(r, std::max(g, b)), mn = std::min(r, std::min(g, b)), d = mx - mn;
               double h = 0;
               if (d > 0) {
@@ -217,7 +236,8 @@ script:
               }
               const int hue = ((int) nearbyint(h)) % 360;
               const int sat = mx > 0 ? (int) nearbyint(d / mx * 100.0) : 0;
-              const int val = (int) nearbyint(mx * 100.0);
+              int val = (int) nearbyint(mx * 100.0);
+              if (val == 0 && rgb != 0) val = 1;  // very dim but not off
               const uint16_t hs = ((hue & 0x1FF) << 7) | (sat & 0x7F);
               p.insert(p.end(), {0xA1, (uint8_t) (hs >> 8), (uint8_t) (hs & 0xFF), (uint8_t) val});
             }
@@ -290,64 +310,81 @@ script:
                 }
             - delay: 30ms
 
+  # Control changes: wait a moment so the three RGB channel writes of one
+  # Signal change (and anything else in the same instant) go out as one command.
+  - id: bar_changed
+    mode: restart
+    then:
+      - delay: 20ms
+      - lambda: id(bar_pending) |= 7;
+      - script.execute: bar_push
+
 output:
   - platform: template
-    id: bar_output
+    id: night_output
     type: float
     write_action:
-      - globals.set:
-          id: bar_level
-          value: !lambda return state;
-      - lambda: id(bar_pending) |= 7;
-      - script.execute: bar_push
+      - lambda: |-
+          id(night_target) = state;
+          id(night_steps) = ${night_fade_steps};
+          if (id(rainbow_on)) {
+            id(rainbow_on) = false;
+            id(bar_changed).execute();  // leave rainbow now; the fade follows
+          }
+  - platform: template
+    id: signal_red
+    type: float
+    write_action:
+      - lambda: |-
+          id(signal_rgb)[0] = state;
+          id(rainbow_on) = false;
+          id(bar_changed).execute();
+  - platform: template
+    id: signal_green
+    type: float
+    write_action:
+      - lambda: |-
+          id(signal_rgb)[1] = state;
+          id(rainbow_on) = false;
+          id(bar_changed).execute();
+  - platform: template
+    id: signal_blue
+    type: float
+    write_action:
+      - lambda: |-
+          id(signal_rgb)[2] = state;
+          id(rainbow_on) = false;
+          id(bar_changed).execute();
 
+# gamma_correct 1.0: HA brightness and colour map straight to the bars' values.
+# No ESPHome transitions: the Night Light fade is done above, in 1 s steps.
 light:
   - platform: monochromatic
-    name: Light
-    id: bar_light
-    output: bar_output
-    gamma_correct: 1.0             # brightness maps straight to the bar's 1-100 %
-    default_transition_length: 0s  # one command per change, no fades
+    name: Night Light
+    id: night_light
+    icon: mdi:weather-night
+    output: night_output
+    gamma_correct: 1.0
+    default_transition_length: 0s
+    restore_mode: RESTORE_DEFAULT_OFF
+  - platform: rgb
+    name: Signal
+    id: signal_light
+    icon: mdi:traffic-light
+    red: signal_red
+    green: signal_green
+    blue: signal_blue
+    gamma_correct: 1.0
+    default_transition_length: 0s
     restore_mode: RESTORE_DEFAULT_OFF
 
-switch:
-  - platform: template
-    name: Night Light
-    id: bar_night
-    icon: mdi:weather-night
-    optimistic: true
-    restore_mode: RESTORE_DEFAULT_OFF
-    on_turn_on:
-      - lambda: id(bar_pending) |= 7;
-      - script.execute: bar_push
-    on_turn_off:
-      - lambda: id(bar_pending) |= 7;
-      - script.execute: bar_push
+button:
   - platform: template
     name: Rainbow
-    id: bar_rainbow
     icon: mdi:looks
-    optimistic: true
-    restore_mode: RESTORE_DEFAULT_OFF
-    on_turn_on:
-      - lambda: id(bar_pending) |= 7;
-      - script.execute: bar_push
-    on_turn_off:
-      - lambda: id(bar_pending) |= 7;
-      - script.execute: bar_push
-
-select:
-  - platform: template
-    name: Signal
-    id: bar_signal
-    icon: mdi:traffic-light
-    optimistic: true
-    restore_value: true
-    options: [black, red, yellow, green, blue, purple]
-    initial_option: black
-    on_value:
-      - lambda: id(bar_pending) |= 7;
-      - script.execute: bar_push
+    on_press:
+      - lambda: id(rainbow_on) = true;
+      - script.execute: bar_changed
 
 binary_sensor:
   - platform: template
