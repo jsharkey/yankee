@@ -69,6 +69,8 @@ climate:
           auto delta_f = current_f - target_f;
           ESP_LOGD("mitsu", "current=%f target=%f delta=%f", current_f, target_f, delta_f);
 
+          if (id(fan_ignored).state) return;
+
           if (id(fan_only_when_satisfied).state) {
             if (x.mode == CLIMATE_MODE_FAN_ONLY && delta_f <= -1) {
               ESP_LOGD("mitsu", "heating too cold; moving from fan to heat");
@@ -79,15 +81,21 @@ climate:
             }
           }
 
-          ClimateFanMode desired;
+          ClimateFanMode desired = CLIMATE_FAN_AUTO;
           if (id(fan_medium_when_cooling).state && x.mode == CLIMATE_MODE_COOL) {
             desired = CLIMATE_FAN_MEDIUM;
-          } else if (id(fan_quiet_when_satisfied).state && x.mode == CLIMATE_MODE_COOL && delta_f < -1) {
-            desired = CLIMATE_FAN_QUIET;
-          } else if (id(fan_quiet_when_satisfied).state && x.mode == CLIMATE_MODE_HEAT && delta_f > 1) {
-            desired = CLIMATE_FAN_QUIET;
-          } else {
-            desired = CLIMATE_FAN_AUTO;
+          } else if (id(fan_custom_stages).state) {
+            if (x.mode == CLIMATE_MODE_HEAT) {
+              if (delta_f <= -2) desired = CLIMATE_FAN_HIGH;
+              else if (delta_f <= -1) desired = CLIMATE_FAN_MEDIUM;
+              else if (delta_f <= -0.5) desired = CLIMATE_FAN_LOW;
+              else desired = CLIMATE_FAN_QUIET;
+            } else if (x.mode == CLIMATE_MODE_COOL) {
+              if (delta_f >= 2) desired = CLIMATE_FAN_HIGH;
+              else if (delta_f >= 1) desired = CLIMATE_FAN_MEDIUM;
+              else if (delta_f >= 0.5) desired = CLIMATE_FAN_LOW;
+              else desired = CLIMATE_FAN_QUIET;
+            }
           }
 
           // Only send a command when the fan mode actually needs to change;
@@ -157,8 +165,17 @@ switch:
           - lambda: |-
               id(mitsu_$zone).publish_state();
   - platform: template
-    id: fan_quiet_when_satisfied
-    name: "Fan Quiet when Satisfied"
+    id: fan_medium_when_cooling
+    name: "Fan Medium when Cooling"
+    restore_mode: RESTORE_DEFAULT_OFF
+    optimistic: true
+    on_state:
+      - then:
+          - lambda: |-
+              id(mitsu_$zone).publish_state();
+  - platform: template
+    id: fan_custom_stages
+    name: "Fan Custom Stages"
     optimistic: true
     restore_mode: RESTORE_DEFAULT_OFF
     on_state:
@@ -166,10 +183,10 @@ switch:
           - lambda: |-
               id(mitsu_$zone).publish_state();
   - platform: template
-    id: fan_medium_when_cooling
-    name: "Fan Medium when Cooling"
-    restore_mode: RESTORE_DEFAULT_OFF
+    id: fan_ignored
+    name: "Fan Ignored"
     optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF
     on_state:
       - then:
           - lambda: |-

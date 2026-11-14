@@ -8,10 +8,15 @@ esp8266:
     version: recommended
 
 api:
+  encryption:
+    key: !secret api_key
+
 ota:
-  platform: esphome
+  - platform: esphome
+    password: !secret ota_password
 
 wifi:
+  min_auth_mode: WPA2
   fast_connect: true
   ssid: !secret wifi_ssid
   password: !secret wifi_password
@@ -31,6 +36,16 @@ remote_transmitter:
   id: ir_tx
   pin: GPIO4
   carrier_duty_percent: 50%
+
+infrared:
+  - platform: ir_rf_proxy
+    name: IR Proxy Transmitter
+    id: ir_proxy_tx
+    remote_transmitter_id: ir_tx
+  - platform: ir_rf_proxy
+    name: IR Proxy Receiver
+    id: ir_proxy_rx
+    remote_receiver_id: ir_rx
 
 button:
   - platform: template
