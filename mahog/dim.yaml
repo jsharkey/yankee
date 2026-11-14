@@ -1,6 +1,7 @@
 
 esphome:
-  name: dim_$zone
+  # Hostnames can't contain "_" (mDNS breaks), so the node name uses dashes.
+  name: dim-${ zone | replace('_', '-') }
   friendly_name: $zone_friendly
   comment: $zone_friendly
 

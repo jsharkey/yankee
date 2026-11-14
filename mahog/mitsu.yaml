@@ -5,7 +5,11 @@
 # ORG = RX
 
 esphome:
-  name: mitsu_$zone
+  # Hostnames can't contain "_" (mDNS breaks), so the node name uses dashes:
+  # mitsu-n-bed. friendly_name keeps the old name, so Home Assistant's device
+  # and entity names (climate.mitsu_n_bed_...) stay exactly as they were.
+  name: mitsu-${ zone | replace('_', '-') }
+  friendly_name: mitsu_$zone
 
 esp8266:
   board: esp01_1m
