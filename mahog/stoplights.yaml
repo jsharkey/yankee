@@ -35,7 +35,7 @@ esphome:
   friendly_name: ${friendly_name}
 
 esp32:
-  board: esp32dev
+  board: wemos_d1_mini32
   framework:
     type: esp-idf
     version: recommended
