@@ -13,6 +13,8 @@ logger:
   level: ERROR
 
 api:
+  reboot_timeout: 3h
+
 ota:
   platform: esphome
 
