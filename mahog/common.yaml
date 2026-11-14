@@ -1,0 +1,21 @@
+# Shared api / ota / wifi settings for the mahog ESPHome devices (canonical
+# values from mitsu.yaml). Include it from each device:
+#
+#   packages:
+#     common: !include common.yaml
+#
+# min_auth_mode isn't set: ESPHome already defaults it to WPA2 on ESP32 and
+# ESP8266, and rejects the option on other chips (e.g. the bk72xx dimmers).
+
+api:
+  encryption:
+    key: !secret api_key
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+wifi:
+  fast_connect: true
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password

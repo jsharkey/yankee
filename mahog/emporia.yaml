@@ -13,9 +13,8 @@ external_components:
     components:
       - emporia_vue
 
-api:
-ota:
-  platform: esphome
+packages:
+  common: !include common.yaml
 
 time:
   - platform: homeassistant
@@ -30,10 +29,6 @@ logger:
 
 preferences:
   flash_write_interval: "48h"
-
-wifi:
-  ssid: !secret wifi_ssid
-  password: !secret wifi_password
 
 output:
   - platform: ledc
@@ -211,5 +206,3 @@ sensor:
   # - { power_id: cir14, platform: total_daily_energy, accuracy_decimals: 0, restore: false, name: "${cir_14} Daily Energy", filters: *throttle_time }
   # - { power_id: cir15, platform: total_daily_energy, accuracy_decimals: 0, restore: false, name: "${cir_15} Daily Energy", filters: *throttle_time }
   # - { power_id: cir16, platform: total_daily_energy, accuracy_decimals: 0, restore: false, name: "${cir_16} Daily Energy", filters: *throttle_time }
-
-
