@@ -57,7 +57,7 @@
         },
         "data_description": {
           "night_color": "A colour name or RRGGBB, e.g. ff8811.",
-          "signal_colors": "Comma-separated options for the Signal select, e.g. black, red, yellow, green, blue, purple."
+          "signal_colors": "Comma-separated options for the Signal select. Each is a colour, or label=colour to send a different colour under a friendly name, e.g. black, red, yellow=ff4400, green, blue, purple."
         }
       }
     },
@@ -78,6 +78,9 @@
     "switch": {
       "night": {
         "name": "Night light"
+      },
+      "rainbow": {
+        "name": "Rainbow"
       }
     }
   },

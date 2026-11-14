@@ -46,6 +46,7 @@ from .const import (
     DOMAIN,
     MODE_PATTERNS,
     MODE_SEGMENTS,
+    OLD_DEFAULT_SIGNAL_COLORS,
 )
 from .segments import (
     SEGMENT_PRODUCT_IDS,
@@ -149,6 +150,11 @@ class DazzleConfigFlow(ConfigFlow, domain=DOMAIN):
     @callback
     def async_get_options_flow(config_entry: ConfigEntry) -> OptionsFlow:
         return DazzleOptionsFlow()
+
+
+def _signal_default(opts: dict[str, Any]) -> str:
+    value = opts.get(CONF_SIGNAL_COLORS, DEFAULT_SIGNAL_COLORS)
+    return DEFAULT_SIGNAL_COLORS if value == OLD_DEFAULT_SIGNAL_COLORS else value
 
 
 class DazzleOptionsFlow(OptionsFlow):
@@ -269,7 +275,7 @@ class DazzleOptionsFlow(OptionsFlow):
                 CONF_NIGHT_COLOR, default=opts.get(CONF_NIGHT_COLOR, DEFAULT_NIGHT_COLOR)
             ): TextSelector(),
             vol.Required(
-                CONF_SIGNAL_COLORS, default=opts.get(CONF_SIGNAL_COLORS, DEFAULT_SIGNAL_COLORS)
+                CONF_SIGNAL_COLORS, default=_signal_default(opts)
             ): TextSelector(),
         })
         return self.async_show_form(

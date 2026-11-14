@@ -21,7 +21,9 @@ MODE_SEGMENTS: Final = "segments"   # segment bar: night + signal (IOTBT4E8, pro
 
 DEFAULT_LAYOUT: Final = "night*8 black*9 signal"
 DEFAULT_NIGHT_COLOR: Final = "ff8811"
-DEFAULT_SIGNAL_COLORS: Final = "black, red, yellow, green, blue, purple"
+DEFAULT_SIGNAL_COLORS: Final = "black, red, yellow=ff4400, green, blue, purple"
+# 0.3.0's default; entries still carrying it get the new default.
+OLD_DEFAULT_SIGNAL_COLORS: Final = "black, red, yellow, green, blue, purple"
 
 DEFAULT_POINT_COUNT: Final = 100
 DEFAULT_DISCONNECT_DELAY: Final = 60  # seconds an idle BLE link is kept open

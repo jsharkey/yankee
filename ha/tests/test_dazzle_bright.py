@@ -218,10 +218,12 @@ def test_bad_layouts(text, message):
 
 
 def test_signal_colour_list():
-    assert segments.parse_color_list("black, red, yellow,green blue purple, red") == [
-        "black", "red", "yellow", "green", "blue", "purple"]
-    with pytest.raises(segments.LayoutError):
-        segments.parse_color_list("red, nope")
+    colours = segments.parse_color_list("black, red, yellow=FF4400,green blue purple, red")
+    assert list(colours) == ["black", "red", "yellow", "green", "blue", "purple"]
+    assert colours["yellow"] == "ff4400" and colours["red"] == "red"
+    for bad in ("red, nope", "yellow=nope", "=ff4400"):
+        with pytest.raises(segments.LayoutError):
+            segments.parse_color_list(bad)
 
 
 def test_product_id_from_advert():
@@ -232,3 +234,10 @@ def test_product_id_from_advert():
           bytes.fromhex("5b 07 08 65 f0 41 5c c3 00 c5 43 08 01 28")}
     assert segments.product_id_from_service_data(sd) == 197
     assert segments.product_id_from_service_data({}) is None
+
+
+def test_rainbow_args():
+    args = segments.rainbow_args(18)
+    assert args == "segments --count 18 red orange yellow green blue purple"
+    payload, _, _ = dm.build_command(args)
+    assert payload[6] == 18 and payload[7:31] == payload[31:55] == payload[55:79]

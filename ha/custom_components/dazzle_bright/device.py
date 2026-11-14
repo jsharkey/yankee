@@ -15,7 +15,7 @@ from homeassistant.core import HomeAssistant, callback
 
 from . import dazzle_multicolor as dm
 from .const import GATT_WRITE_UUID
-from .segments import render, segment_args
+from .segments import rainbow_args, render, segment_args
 from .templates import TemplateError, build_payload, find_template
 
 _LOGGER = logging.getLogger(__name__)
@@ -39,16 +39,20 @@ class SegmentBar:
 
     slots: list[str]
     night_color: str
-    signal_colors: list[str]
+    signal_colors: dict[str, str]  # select option -> colour sent
     night_on: bool = False
+    rainbow_on: bool = False  # overrides night + signal
     signal: str = field(default="")
 
     def __post_init__(self) -> None:
         if self.signal not in self.signal_colors:
-            self.signal = self.signal_colors[0]
+            self.signal = next(iter(self.signal_colors))
 
     def args(self) -> str:
-        return segment_args(render(self.slots, self.night_on, self.night_color, self.signal))
+        if self.rainbow_on:
+            return rainbow_args(len(self.slots))
+        return segment_args(render(self.slots, self.night_on, self.night_color,
+                                   self.signal_colors[self.signal]))
 
     def blank_args(self) -> str:
         return segment_args(["black"] * len(self.slots))
@@ -157,6 +161,12 @@ class DazzleDevice:
         """Night switch (segment bar). Shown at once if the light is on, else at next turn-on."""
         assert self.bar is not None
         self.bar.night_on = on
+        await self._refresh_bar()
+
+    async def async_set_rainbow(self, on: bool) -> None:
+        """Rainbow switch (segment bar): overrides night + signal while on."""
+        assert self.bar is not None
+        self.bar.rainbow_on = on
         await self._refresh_bar()
 
     async def async_set_signal(self, color: str) -> None:

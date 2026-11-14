@@ -31,6 +31,7 @@ from .const import (
     DEFAULT_SIGNAL_COLORS,
     DEFAULT_TEMPLATES,
     MODE_SEGMENTS,
+    OLD_DEFAULT_SIGNAL_COLORS,
 )
 from .device import DazzleDevice, SegmentBar
 from .segments import LayoutError, check_color, parse_color_list, parse_layout
@@ -81,11 +82,14 @@ def _segment_bar(entry: DazzleConfigEntry) -> SegmentBar | None:
     opts = entry.options
     if opts.get(CONF_MODE) != MODE_SEGMENTS:
         return None
+    signal_colors = opts.get(CONF_SIGNAL_COLORS, DEFAULT_SIGNAL_COLORS)
+    if signal_colors == OLD_DEFAULT_SIGNAL_COLORS:
+        signal_colors = DEFAULT_SIGNAL_COLORS
     try:
         return SegmentBar(
             parse_layout(opts.get(CONF_LAYOUT, DEFAULT_LAYOUT)),
             check_color(opts.get(CONF_NIGHT_COLOR, DEFAULT_NIGHT_COLOR)),
-            parse_color_list(opts.get(CONF_SIGNAL_COLORS, DEFAULT_SIGNAL_COLORS)),
+            parse_color_list(signal_colors),
         )
     except LayoutError as err:
         _LOGGER.error("%s: invalid segment settings (%s); using defaults", entry.title, err)

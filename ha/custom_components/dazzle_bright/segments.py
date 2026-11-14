@@ -57,13 +57,19 @@ def parse_layout(text: str) -> list[str]:
     return slots
 
 
-def parse_color_list(text: str) -> list[str]:
-    """'black, red, yellow' -> ['black', 'red', 'yellow'] (validated, no duplicates)."""
-    out: list[str] = []
+def parse_color_list(text: str) -> dict[str, str]:
+    """Signal options: 'black, red, yellow=ff4400' -> {label: colour}, in order.
+
+    Each entry is a colour (name or RRGGBB), or label=colour to show a friendly
+    name in the select while sending a different colour."""
+    out: dict[str, str] = {}
     for part in (text or "").replace(",", " ").split():
-        c = check_color(part)
-        if c not in out:
-            out.append(c)
+        label, sep, color = part.partition("=")
+        label = label.strip().lower()
+        if sep and not label:
+            raise LayoutError(f"missing label in {part!r}")
+        c = check_color(color if sep else label)
+        out.setdefault(label if sep else c, c)
     if not out:
         raise LayoutError("no colours given")
     return out
@@ -73,6 +79,15 @@ def render(slots: list[str], night_on: bool, night_color: str, signal: str) -> l
     """Resolve the layout slots to one concrete colour per segment."""
     night = night_color if night_on else "black"
     return [night if s == NIGHT else signal if s == SIGNAL else s for s in slots]
+
+
+# Rainbow switch: these colours repeated along the whole bar.
+RAINBOW = ["red", "orange", "yellow", "green", "blue", "purple"]
+
+
+def rainbow_args(count: int) -> str:
+    """'segments --count 18 red orange yellow green blue purple' for an 18-segment bar."""
+    return f"segments --count {count} " + " ".join(RAINBOW)
 
 
 def segment_args(colors: list[str]) -> str:

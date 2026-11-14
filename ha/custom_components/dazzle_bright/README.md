@@ -52,8 +52,11 @@ advert and set up in **segment bar** mode (you can change the mode under
 * **Light**: on/off and brightness, as above. Off blanks every segment.
 * **Night light** (switch): the `night` segments show the night colour
   (default `ff8811`) when on, black when off.
+* **Rainbow** (switch): while on, the whole bar shows red, orange, yellow,
+  green, blue and purple repeated, overriding the night light and signal.
 * **Signal** (select): colour of the `signal` segment(s). Default options are
-  black, red, yellow, green, blue and purple.
+  black, red, yellow (sent as `ff4400`), green, blue and purple. In the options,
+  write `label=colour` to give a colour a friendly name, e.g. `yellow=ff4400`.
 
 The default layout is `night*8 black*9 signal`, top to bottom: 18 segments, the
 number on the IOTBT4E8. `name*N` repeats an entry, and any other entry is a fixed

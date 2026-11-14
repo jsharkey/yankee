@@ -1,4 +1,4 @@
-"""Switch entity (segment bar only): the "night" segments on/off."""
+"""Switch entities (segment bar only): night light and rainbow."""
 from __future__ import annotations
 
 from typing import Any
@@ -18,26 +18,27 @@ from .light import device_info
 async def async_setup_entry(
     hass: HomeAssistant, entry: DazzleConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
-    if entry.runtime_data.bar:
-        async_add_entities([DazzleNightSwitch(entry.runtime_data)])
+    device = entry.runtime_data
+    if device.bar:
+        async_add_entities([DazzleNightSwitch(device), DazzleRainbowSwitch(device)])
 
 
-class DazzleNightSwitch(SwitchEntity, RestoreEntity):
-    """On: the layout's "night" slots show the night colour. Off: black."""
+class _BarSwitch(SwitchEntity, RestoreEntity):
+    """A segment-bar flag: restored after restart (nothing sent), applied when the light is on."""
 
     _attr_has_entity_name = True
-    _attr_translation_key = "night"
     _attr_assumed_state = True
+    _flag: str  # SegmentBar attribute
 
     def __init__(self, device: DazzleDevice) -> None:
         self._device = device
-        self._attr_unique_id = f"{device.address}_night"
+        self._attr_unique_id = f"{device.address}_{self._attr_translation_key}"
         self._attr_device_info = device_info(device)
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
         if (last := await self.async_get_last_state()) is not None:
-            self._device.bar.night_on = last.state == STATE_ON  # restore only
+            setattr(self._device.bar, self._flag, last.state == STATE_ON)  # restore only
         self.async_on_remove(self._device.register_callback(self._update))
 
     @callback
@@ -46,7 +47,7 @@ class DazzleNightSwitch(SwitchEntity, RestoreEntity):
 
     @property
     def is_on(self) -> bool:
-        return self._device.bar.night_on
+        return getattr(self._device.bar, self._flag)
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         await self._set(True)
@@ -54,8 +55,31 @@ class DazzleNightSwitch(SwitchEntity, RestoreEntity):
     async def async_turn_off(self, **kwargs: Any) -> None:
         await self._set(False)
 
+    async def _apply(self, on: bool) -> None:
+        raise NotImplementedError
+
     async def _set(self, on: bool) -> None:
         try:
-            await self._device.async_set_night(on)
+            await self._apply(on)
         except Exception as err:  # BLE errors
             raise HomeAssistantError(f"{self._device.name}: {err}") from err
+
+
+class DazzleNightSwitch(_BarSwitch):
+    """On: the layout's "night" slots show the night colour. Off: black."""
+
+    _attr_translation_key = "night"
+    _flag = "night_on"
+
+    async def _apply(self, on: bool) -> None:
+        await self._device.async_set_night(on)
+
+
+class DazzleRainbowSwitch(_BarSwitch):
+    """On: red/orange/yellow/green/blue/purple along the whole bar, overriding night + signal."""
+
+    _attr_translation_key = "rainbow"
+    _flag = "rainbow_on"
+
+    async def _apply(self, on: bool) -> None:
+        await self._device.async_set_rainbow(on)
