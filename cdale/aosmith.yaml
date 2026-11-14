@@ -75,14 +75,8 @@ script:
           - delay: 0.5s
           - switch.turn_off: relay_normal
 
-time:
-  - platform: sntp
-    timezone: "America/Denver"
-    update_interval: 6h
-    on_time:
-      - seconds: 0
-        minutes: 0
-        hours: 6
-        then:
-          - logger.log: "Applying from time"
-          - script.execute: script_apply
+interval:
+  - interval: 24h
+    then:
+      - logger.log: "Applying from interval"
+      - script.execute: script_apply
