@@ -81,13 +81,13 @@ def render(slots: list[str], night_on: bool, night_color: str, signal: str) -> l
     return [night if s == NIGHT else signal if s == SIGNAL else s for s in slots]
 
 
-# Rainbow switch: these colours repeated along the whole bar.
+# Rainbow switch: these colours in equal blocks along the whole bar.
 RAINBOW = ["red", "orange", "yellow", "green", "blue", "purple"]
 
 
 def rainbow_args(count: int) -> str:
-    """'segments --count 18 red orange yellow green blue purple' for an 18-segment bar."""
-    return f"segments --count {count} " + " ".join(RAINBOW)
+    """Rainbow in equal blocks: 18 segments -> red red red orange orange orange ... purple."""
+    return segment_args([RAINBOW[i * len(RAINBOW) // count] for i in range(count)])
 
 
 def segment_args(colors: list[str]) -> str:

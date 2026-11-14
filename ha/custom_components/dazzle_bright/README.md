@@ -52,8 +52,9 @@ advert and set up in **segment bar** mode (you can change the mode under
 * **Light**: on/off and brightness, as above. Off blanks every segment.
 * **Night light** (switch): the `night` segments show the night colour
   (default `ff8811`) when on, black when off.
-* **Rainbow** (switch): while on, the whole bar shows red, orange, yellow,
-  green, blue and purple repeated, overriding the night light and signal.
+* **Rainbow** (switch): while on, the bar shows red, orange, yellow, green,
+  blue and purple in equal blocks (3 segments each on 18), overriding the
+  night light and signal.
 * **Signal** (select): colour of the `signal` segment(s). Default options are
   black, red, yellow (sent as `ff4400`), green, blue and purple. In the options,
   write `label=colour` to give a colour a friendly name, e.g. `yellow=ff4400`.

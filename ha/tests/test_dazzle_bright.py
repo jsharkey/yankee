@@ -238,6 +238,7 @@ def test_product_id_from_advert():
 
 def test_rainbow_args():
     args = segments.rainbow_args(18)
-    assert args == "segments --count 18 red orange yellow green blue purple"
+    assert args == ("segments --count 18 red red red orange orange orange yellow yellow yellow "
+                    "green green green blue blue blue purple purple purple")
     payload, _, _ = dm.build_command(args)
-    assert payload[6] == 18 and payload[7:31] == payload[31:55] == payload[55:79]
+    assert payload[6] == 18 and payload[7:11] == payload[11:15] == payload[15:19] != payload[19:23]

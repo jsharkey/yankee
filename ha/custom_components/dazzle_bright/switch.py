@@ -76,7 +76,7 @@ class DazzleNightSwitch(_BarSwitch):
 
 
 class DazzleRainbowSwitch(_BarSwitch):
-    """On: red/orange/yellow/green/blue/purple along the whole bar, overriding night + signal."""
+    """On: red/orange/yellow/green/blue/purple in equal blocks, overriding night + signal."""
 
     _attr_translation_key = "rainbow"
     _flag = "rainbow_on"
