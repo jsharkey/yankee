@@ -63,6 +63,8 @@ climate:
           ESP_LOGD("mitsu", "current=%f target=%f delta=%f", current_f, target_f, delta_f);
 
           if (id(fan_ignored).state) return;
+          // Leave the unit alone while a mode-switch script is mid-sequence.
+          if (id(script_heat_auto).is_running() || id(script_fan_only_auto).is_running()) return;
 
           if (id(fan_only_when_satisfied).state) {
             if (x.mode == CLIMATE_MODE_FAN_ONLY && delta_f <= -1) {

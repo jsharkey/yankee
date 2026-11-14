@@ -357,8 +357,8 @@ lvgl:
                         text_color: white
                         text_align: CENTER
                         on_click:
-                          - homeassistant.service:
-                              service: climate.set_hvac_mode
+                          - homeassistant.action:
+                              action: climate.set_hvac_mode
                               data:
                                 entity_id: ${zone_left}
                                 hvac_mode: "heat_cool"
@@ -395,14 +395,14 @@ lvgl:
                         text_font: icon_big
                         text_color: 0xFF0000
                   on_short_click:
-                    - homeassistant.service:
-                        service: climate.set_temperature
+                    - homeassistant.action:
+                        action: climate.set_temperature
                         data:
                           entity_id: ${zone_left}
                           temperature: !lambda "return id(zone_left_target).state + 1;"
                   on_long_press:
-                    - homeassistant.service:
-                        service: climate.set_hvac_mode
+                    - homeassistant.action:
+                        action: climate.set_hvac_mode
                         data:
                           entity_id: ${zone_left}
                           hvac_mode: "off"
@@ -424,14 +424,14 @@ lvgl:
                         text_font: icon_big
                         text_color: 0x0000FF
                   on_short_click:
-                    - homeassistant.service:
-                        service: climate.set_temperature
+                    - homeassistant.action:
+                        action: climate.set_temperature
                         data:
                           entity_id: ${zone_left}
                           temperature: !lambda "return id(zone_left_target).state - 1;"
                   on_long_press:
-                    - homeassistant.service:
-                        service: climate.set_hvac_mode
+                    - homeassistant.action:
+                        action: climate.set_hvac_mode
                         data:
                           entity_id: ${zone_left}
                           hvac_mode: "off"
@@ -475,8 +475,8 @@ lvgl:
                         text_color: white
                         text_align: CENTER
                         on_click:
-                          - homeassistant.service:
-                              service: climate.set_hvac_mode
+                          - homeassistant.action:
+                              action: climate.set_hvac_mode
                               data:
                                 entity_id: ${zone_right}
                                 hvac_mode: "heat_cool"
@@ -512,14 +512,14 @@ lvgl:
                         text_font: icon_big
                         text_color: 0xFF0000
                   on_short_click:
-                    - homeassistant.service:
-                        service: climate.set_temperature
+                    - homeassistant.action:
+                        action: climate.set_temperature
                         data:
                           entity_id: ${zone_right}
                           temperature: !lambda "return id(zone_right_target).state + 1;"
                   on_long_press:
-                    - homeassistant.service:
-                        service: climate.set_hvac_mode
+                    - homeassistant.action:
+                        action: climate.set_hvac_mode
                         data:
                           entity_id: ${zone_right}
                           hvac_mode: "off"
@@ -540,14 +540,14 @@ lvgl:
                         text_font: icon_big
                         text_color: 0x0000FF
                   on_short_click:
-                    - homeassistant.service:
-                        service: climate.set_temperature
+                    - homeassistant.action:
+                        action: climate.set_temperature
                         data:
                           entity_id: ${zone_right}
                           temperature: !lambda "return id(zone_right_target).state - 1;"
                   on_long_press:
-                    - homeassistant.service:
-                        service: climate.set_hvac_mode
+                    - homeassistant.action:
+                        action: climate.set_hvac_mode
                         data:
                           entity_id: ${zone_right}
                           hvac_mode: "off"
