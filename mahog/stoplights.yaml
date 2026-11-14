@@ -59,6 +59,10 @@ ble_client:
   - id: stoplight_1
     mac_address: ${stoplight_1_mac}
     on_connect:
+      # runs before ESPHome frees the discovered services, so no delay first
+      - script.execute:
+          id: bar_find_ff01
+          bar: 0
       - delay: 1s
       - lambda: id(bar_pending) |= 1;
       - script.execute: bar_push
@@ -68,6 +72,10 @@ ble_client:
   - id: stoplight_2
     mac_address: ${stoplight_2_mac}
     on_connect:
+      # runs before ESPHome frees the discovered services, so no delay first
+      - script.execute:
+          id: bar_find_ff01
+          bar: 1
       - delay: 1s
       - lambda: id(bar_pending) |= 2;
       - script.execute: bar_push
@@ -77,6 +85,10 @@ ble_client:
   - id: stoplight_3
     mac_address: ${stoplight_3_mac}
     on_connect:
+      # runs before ESPHome frees the discovered services, so no delay first
+      - script.execute:
+          id: bar_find_ff01
+          bar: 2
       - delay: 1s
       - lambda: id(bar_pending) |= 4;
       - script.execute: bar_push
@@ -108,11 +120,49 @@ globals:
   - id: bar_targets      # bars the packets being sent go to
     type: uint8_t
     initial_value: "0"
-  - id: bar_handle       # per bar: handle of the ff01 write characteristic (0 = look it up)
+  - id: bar_handle       # per bar: handle of the ff01 write characteristic (0 = unknown)
     type: std::array<uint16_t, 3>
     initial_value: "{0, 0, 0}"
 
 script:
+  # At connect: find the ff01 write characteristic in whichever service holds
+  # it and remember its handle. Must run synchronously in on_connect, before
+  # ESPHome releases the service list ("All clients established, services
+  # released"). If it's missing, log what the bar offers and reconnect.
+  - id: bar_find_ff01
+    mode: parallel
+    parameters:
+      bar: int
+    then:
+      - lambda: |-
+          ble_client::BLEClient *bars[3] = {id(stoplight_1), id(stoplight_2), id(stoplight_3)};
+          auto *client = bars[bar];
+          const auto FF01 = esp32_ble::ESPBTUUID::from_uint16(0xFF01);
+          auto *chr = client->get_characteristic(0xFFFF, 0xFF01);
+          for (uint16_t h = 1; chr == nullptr && h < 0x200; h++) {
+            auto *c = client->get_characteristic(h);
+            if (c != nullptr && c->uuid == FF01) chr = c;
+          }
+          if (chr != nullptr) {
+            id(bar_handle)[bar] = chr->handle;
+            char su[esp32_ble::UUID_STR_LEN];
+            chr->service->uuid.to_str(su);
+            ESP_LOGI("stoplights", "stoplight %d: ff01 is handle 0x%04x in service %s", bar + 1, chr->handle, su);
+            return;
+          }
+          id(bar_handle)[bar] = 0;
+          ESP_LOGE("stoplights", "stoplight %d: characteristic ff01 not found; reconnecting. Found:", bar + 1);
+          for (uint16_t h = 1; h < 0x200; h++) {
+            auto *c = client->get_characteristic(h);
+            if (c == nullptr || c->handle != h) continue;
+            char cu[esp32_ble::UUID_STR_LEN], su[esp32_ble::UUID_STR_LEN];
+            c->uuid.to_str(cu);
+            c->service->uuid.to_str(su);
+            ESP_LOGE("stoplights", "  service %s char %s handle 0x%04x props 0x%02x", su, cu, h, c->properties);
+          }
+          esp_ble_gattc_cache_clean(client->get_remote_bda());
+          client->disconnect();
+
   - id: bar_push
     mode: restart
     then:
@@ -226,37 +276,16 @@ script:
                     id(bar_targets) &= ~(1 << b);
                     continue;
                   }
-                  // Find the ff01 write characteristic in whichever service holds it
-                  // (not always ffff), and remember its handle for this connection.
-                  const auto FF01 = esp32_ble::ESPBTUUID::from_uint16(0xFF01);
-                  esp32_ble_client::BLECharacteristic *chr = nullptr;
-                  if (id(bar_handle)[b] != 0) chr = bars[b]->get_characteristic(id(bar_handle)[b]);
-                  if (chr == nullptr || !(chr->uuid == FF01)) {
-                    chr = bars[b]->get_characteristic(0xFFFF, 0xFF01);
-                    for (uint16_t h = 1; chr == nullptr && h < 0x200; h++) {
-                      auto *c = bars[b]->get_characteristic(h);
-                      if (c != nullptr && c->uuid == FF01) chr = c;
-                    }
-                    id(bar_handle)[b] = chr != nullptr ? chr->handle : 0;
-                  }
-                  if (chr == nullptr) {
-                    // Service discovery came back without it: log what the bar
-                    // offers, then drop the link so it reconnects and rediscovers.
-                    ESP_LOGE("stoplights", "stoplight %d: characteristic ff01 not found; reconnecting. Found:", b + 1);
-                    for (uint16_t h = 1; h < 0x200; h++) {
-                      auto *c = bars[b]->get_characteristic(h);
-                      if (c == nullptr || c->handle != h) continue;
-                      char cu[esp32_ble::UUID_STR_LEN], su[esp32_ble::UUID_STR_LEN];
-                      c->uuid.to_str(cu);
-                      c->service->uuid.to_str(su);
-                      ESP_LOGE("stoplights", "  service %s char %s handle 0x%04x props 0x%02x", su, cu, h, c->properties);
-                    }
-                    esp_ble_gattc_cache_clean(bars[b]->get_remote_bda());
-                    bars[b]->disconnect();
+                  // Handle captured by bar_find_ff01 at connect time (ESPHome frees
+                  // the discovered services right after discovery).
+                  const uint16_t handle = id(bar_handle)[b];
+                  if (handle == 0) {
+                    if (i == 0) ESP_LOGE("stoplights", "stoplight %d: no ff01 handle; see its connect log", b + 1);
                     id(bar_targets) &= ~(1 << b);
                     continue;
                   }
-                  chr->write_value(f.data(), f.size(), ESP_GATT_WRITE_TYPE_NO_RSP);
+                  esp_ble_gattc_write_char(bars[b]->get_gattc_if(), bars[b]->get_conn_id(), handle, f.size(),
+                                           f.data(), ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
                 }
             - delay: 30ms
 
