@@ -28,7 +28,8 @@ substitutions:
   gap_segments: "9"         # black between night and signal
   night_color: "0xFF8811"
   signal_yellow: "0xFF4400" # what "yellow" sends
-  packet_size: "20"         # BLE packet size; 20 fits the default 23-byte MTU
+  packet_size: "240"        # BLE packet size: a whole command fits in one packet
+                            # (bars negotiate a 512-byte MTU; use "20" for a 23-byte one)
 
 esphome:
   name: stoplights
