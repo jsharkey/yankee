@@ -1,19 +1,21 @@
-# Stoplights: four IOTBT4E8-style segment bars ("Dazzle Bright", Zengge
+# Stoplights: six IOTBT4E8-style segment bars ("Dazzle Bright", Zengge
 # product 170), driven straight from an ESP32 over BLE instead of the
 # dazzle_bright HA component. One set of controls drives all the bars
-# identically; each bar's segment count is set in substitutions.
+# identically; each bar's segment count and widths are set in substitutions.
 #
 # Entities:
-#   Night Light (light, brightness): the top 8/18 of each bar in night_color. Changes
-#     fade over Night Light Fade Time seconds (default 60), one step per second.
-#   Signal (light, brightness + RGB colour): the bottom (last) segment.
+#   Night Light (light, brightness): the top Night Light Length (default 44.4%,
+#     8/18) of each bar in night_color. Changes fade over Night Light Fade
+#     Time seconds (default 60), one step per second.
+#   Signal (light, brightness + RGB colour): the bottom Signal Length (default
+#     5.6%, 1/18) of each bar, always at least the last segment.
 #   Rainbow (button): red, orange, yellow, green, blue, purple in blocks of
-#     equal physical length along each bar, at full brightness. Any change to Night Light or Signal
-#     leaves it.
+#     equal physical length along each bar, at full brightness. Any change to
+#     Night Light or Signal leaves it.
 # Every change sends each bar its whole layout as one E1 03 command:
-#   night (top 8/18 of the bar), black gap, signal (last segment)
+#   night (top), black gap, signal (bottom)
 # Colours follow each segment's physical position (see stoplight_N_widths), so
-# bar 4's uneven segments look the same as the even 18-segment bars.
+# the uneven 20-segment bars (4-6) look the same as the even 18-segment ones.
 # With both lights off every segment is black (the bars are never powered off:
 # a real power-off flashes white on the next power-on).
 #
@@ -32,21 +34,26 @@ substitutions:
   stoplight_2_mac: "08:65:F0:29:B4:E8"
   stoplight_3_mac: "08:65:F0:29:B4:E9"
   stoplight_4_mac: "08:65:F0:0E:76:AF"
+  stoplight_5_mac: "08:65:F0:0E:53:88"
+  stoplight_6_mac: "08:65:F0:0E:72:D6"
   stoplight_1_segments: "18"  # total segments on each bar
   stoplight_2_segments: "18"
   stoplight_3_segments: "18"
   stoplight_4_segments: "20"
+  stoplight_5_segments: "20"
+  stoplight_6_segments: "20"
   # Relative physical width of each segment, first to last; {} = all equal.
-  # Bar 4: the first 7 segments fill half its length, the last 13 the other
+  # Bars 4-6: the first 7 segments fill half the length, the last 13 the other
   # half, so each big one is 13/7 the width of a small one.
   stoplight_1_widths: "{}"
   stoplight_2_widths: "{}"
   stoplight_3_widths: "{}"
   stoplight_4_widths: "{13, 13, 13, 13, 13, 13, 13, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7}"
+  stoplight_5_widths: "{13, 13, 13, 13, 13, 13, 13, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7}"
+  stoplight_6_widths: "{13, 13, 13, 13, 13, 13, 13, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7}"
   refresh_interval: 5min    # periodic re-send to every bar
-  night_length: "8.0 / 18"  # Night Light covers this much of each bar's length
-                            # from the top (8 of 18 equal segments); the last
-                            # segment is the signal and everything between is black
+  night_length: "44.4"      # default Night Light Length, % of each bar from the top (8/18)
+  signal_length: "5.6"      # default Signal Length, % of each bar from the bottom (1/18)
   night_color: "0xFF8811"
   night_fade_time: "60"     # default Night Light Fade Time, seconds (1 step/s)
   packet_size: "240"        # BLE packet size: a whole command fits in one packet
@@ -68,7 +75,7 @@ packages:
   common: !include common.yaml
 
 esp32_ble:
-  max_connections: 4        # one permanent slot per bar
+  max_connections: 6        # one permanent slot per bar (ESP-IDF allows up to 9)
 
 esp32_ble_tracker:
   scan_parameters:
@@ -130,11 +137,37 @@ ble_client:
     on_disconnect:
       - lambda: id(bar_handle)[3] = 0;
       - logger.log: "stoplight 4 disconnected; reconnecting"
+  - id: stoplight_5
+    mac_address: ${stoplight_5_mac}
+    on_connect:
+      # runs before ESPHome frees the discovered services, so no delay first
+      - script.execute:
+          id: bar_find_ff01
+          bar: 4
+      - delay: 1s
+      - lambda: id(bar_pending) |= 16;
+      - script.execute: bar_push
+    on_disconnect:
+      - lambda: id(bar_handle)[4] = 0;
+      - logger.log: "stoplight 5 disconnected; reconnecting"
+  - id: stoplight_6
+    mac_address: ${stoplight_6_mac}
+    on_connect:
+      # runs before ESPHome frees the discovered services, so no delay first
+      - script.execute:
+          id: bar_find_ff01
+          bar: 5
+      - delay: 1s
+      - lambda: id(bar_pending) |= 32;
+      - script.execute: bar_push
+    on_disconnect:
+      - lambda: id(bar_handle)[5] = 0;
+      - logger.log: "stoplight 6 disconnected; reconnecting"
 
 interval:
   - interval: ${refresh_interval}
     then:
-      - lambda: id(bar_pending) |= 15;
+      - lambda: id(bar_pending) |= 63;
       - script.execute: bar_push
   # Night Light fade: each second, move 1/steps-left of the way to the target.
   - interval: 1s
@@ -165,22 +198,22 @@ globals:
     type: uint8_t
     initial_value: "0"
   - id: bar_frames       # per bar: BLE packets of the command being sent
-    type: std::array<std::vector<std::vector<uint8_t>>, 4>
+    type: std::array<std::vector<std::vector<uint8_t>>, 6>
   - id: bar_frame_count  # most packets any bar's command needs
     type: size_t
     initial_value: "0"
   - id: bar_frame_idx    # next packet to send
     type: size_t
     initial_value: "0"
-  - id: bar_pending      # bars (bit 0..3) that still need the current state
+  - id: bar_pending      # bars (bit 0..5) that still need the current state
     type: uint8_t
     initial_value: "0"
   - id: bar_targets      # bars the packets being sent go to
     type: uint8_t
     initial_value: "0"
   - id: bar_handle       # per bar: handle of the ff01 write characteristic (0 = unknown)
-    type: std::array<uint16_t, 4>
-    initial_value: "{0, 0, 0, 0}"
+    type: std::array<uint16_t, 6>
+    initial_value: "{0, 0, 0, 0, 0, 0}"
 
 script:
   # At connect: find the ff01 write characteristic in whichever service holds
@@ -193,7 +226,8 @@ script:
       bar: int
     then:
       - lambda: |-
-          ble_client::BLEClient *bars[4] = {id(stoplight_1), id(stoplight_2), id(stoplight_3), id(stoplight_4)};
+          ble_client::BLEClient *bars[6] = {id(stoplight_1), id(stoplight_2), id(stoplight_3),
+                                            id(stoplight_4), id(stoplight_5), id(stoplight_6)};
           auto *client = bars[bar];
           const auto FF01 = esp32_ble::ESPBTUUID::from_uint16(0xFF01);
           auto *chr = client->get_characteristic(0xFFFF, 0xFF01);
@@ -231,10 +265,13 @@ script:
             // Build each bar's E1 03 segment command for the current state (bars can
             // have different segment counts) and split it into BLE packets (Zengge
             // "v0" framing, ble_version < 8), into id(bar_frames)[bar].
-            const int bar_segs[4] = {${stoplight_1_segments}, ${stoplight_2_segments},
-                                     ${stoplight_3_segments}, ${stoplight_4_segments}};
-            const std::vector<double> bar_widths[4] = {${stoplight_1_widths}, ${stoplight_2_widths},
-                                                       ${stoplight_3_widths}, ${stoplight_4_widths}};
+            const int bar_segs[6] = {${stoplight_1_segments}, ${stoplight_2_segments}, ${stoplight_3_segments},
+                                     ${stoplight_4_segments}, ${stoplight_5_segments}, ${stoplight_6_segments}};
+            const std::vector<double> bar_widths[6] = {${stoplight_1_widths}, ${stoplight_2_widths},
+                                                       ${stoplight_3_widths}, ${stoplight_4_widths},
+                                                       ${stoplight_5_widths}, ${stoplight_6_widths}};
+            const double night_len = id(night_length).state / 100.0;
+            const double signal_len = id(signal_length).state / 100.0;
             auto scale = [](uint32_t rgb, double k) -> uint32_t {
               // (nearbyint = round-half-even, matching dazzle_multicolor.py)
               return ((uint32_t) nearbyint(((rgb >> 16) & 0xFF) * k) << 16) |
@@ -247,12 +284,13 @@ script:
             const uint8_t seq = ++id(bar_seq);
             id(bar_frame_count) = 0;
 
-            for (int bar = 0; bar < 4; bar++) {
+            for (int bar = 0; bar < 6; bar++) {
               // One colour per segment, brightness already applied (0xRRGGBB),
               // chosen by where the segment's centre physically sits along the bar
               // (0 = top, 1 = bottom), so uneven segments still look even:
-              // night over the top night_length, signal on the last segment,
-              // black in between; rainbow in six equal-length blocks.
+              // signal over the bottom Signal Length (always at least the last
+              // segment), night over the top Night Light Length, black in between;
+              // rainbow in six equal-length blocks.
               const int n_segs = bar_segs[bar];
               const auto &w = bar_widths[bar];
               double total = 0;
@@ -266,10 +304,10 @@ script:
                 if (id(rainbow_on)) {
                   const uint32_t rainbow[6] = {0xFF0000, 0xFF6400, 0xFFFF00, 0x00FF00, 0x0000FF, 0xA000FF};
                   segs.push_back(rainbow[std::min(5, (int) (centre * 6))]);
-                } else if (i == n_segs - 1) {
+                } else if (centre > 1.0 - signal_len || (i == n_segs - 1 && signal_len > 0)) {
                   segs.push_back(signal);
                 } else {
-                  segs.push_back(centre < (${night_length}) ? night : 0x000000);
+                  segs.push_back(centre < night_len ? night : 0x000000);
                 }
               }
 
@@ -337,14 +375,15 @@ script:
             lambda: return id(bar_frame_idx) < id(bar_frame_count);
           then:
             - lambda: |-
-                ble_client::BLEClient *bars[4] = {id(stoplight_1), id(stoplight_2), id(stoplight_3), id(stoplight_4)};
+                ble_client::BLEClient *bars[6] = {id(stoplight_1), id(stoplight_2), id(stoplight_3),
+                                            id(stoplight_4), id(stoplight_5), id(stoplight_6)};
                 const size_t i = id(bar_frame_idx)++;
                 if (i == 0) {
                   char hex[format_hex_pretty_size(255)];
                   ESP_LOGD("stoplights", "send to bars mask %u, %u packets, bar 1 first %s", id(bar_targets),
                            (unsigned) id(bar_frame_count), format_hex_pretty_to(hex, id(bar_frames)[0][0], ' '));
                 }
-                for (int b = 0; b < 4; b++) {
+                for (int b = 0; b < 6; b++) {
                   if (!(id(bar_targets) & (1 << b))) continue;
                   if (i >= id(bar_frames)[b].size()) continue;  // this bar's command is done
                   auto &f = id(bar_frames)[b][i];
@@ -373,7 +412,7 @@ script:
     mode: restart
     then:
       - delay: 20ms
-      - lambda: id(bar_pending) |= 15;
+      - lambda: id(bar_pending) |= 63;
       - script.execute: bar_push
 
 output:
@@ -454,6 +493,36 @@ number:
     optimistic: true
     restore_value: true
     initial_value: ${night_fade_time}
+  - platform: template
+    name: Night Light Length
+    id: night_length
+    icon: mdi:arrow-expand-down
+    entity_category: config
+    unit_of_measurement: "%"
+    mode: box
+    min_value: 0
+    max_value: 100
+    step: 0.1
+    optimistic: true
+    restore_value: true
+    initial_value: ${night_length}
+    on_value:
+      - script.execute: bar_changed
+  - platform: template
+    name: Signal Length
+    id: signal_length
+    icon: mdi:arrow-expand-up
+    entity_category: config
+    unit_of_measurement: "%"
+    mode: box
+    min_value: 0
+    max_value: 100
+    step: 0.1
+    optimistic: true
+    restore_value: true
+    initial_value: ${signal_length}
+    on_value:
+      - script.execute: bar_changed
 
 button:
   - platform: template
@@ -484,6 +553,16 @@ binary_sensor:
     device_class: connectivity
     entity_category: diagnostic
     lambda: return id(stoplight_4).connected();
+  - platform: template
+    name: Stoplight 5 Connected
+    device_class: connectivity
+    entity_category: diagnostic
+    lambda: return id(stoplight_5).connected();
+  - platform: template
+    name: Stoplight 6 Connected
+    device_class: connectivity
+    entity_category: diagnostic
+    lambda: return id(stoplight_6).connected();
 
 sensor:
   - platform: ble_client
@@ -508,5 +587,17 @@ sensor:
     type: rssi
     ble_client_id: stoplight_4
     name: Stoplight 4 RSSI
+    entity_category: diagnostic
+    update_interval: 60s
+  - platform: ble_client
+    type: rssi
+    ble_client_id: stoplight_5
+    name: Stoplight 5 RSSI
+    entity_category: diagnostic
+    update_interval: 60s
+  - platform: ble_client
+    type: rssi
+    ble_client_id: stoplight_6
+    name: Stoplight 6 RSSI
     entity_category: diagnostic
     update_interval: 60s
