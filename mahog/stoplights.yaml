@@ -31,12 +31,12 @@
 
 substitutions:
   friendly_name: Stoplights
-  stoplight_1_mac: "08:65:F0:29:B4:E7"
-  stoplight_2_mac: "08:65:F0:29:B4:E8"
-  stoplight_3_mac: "08:65:F0:29:B4:E9"
-  stoplight_4_mac: "08:65:F0:0E:76:AF"
-  stoplight_5_mac: "08:65:F0:0E:53:88"
-  stoplight_6_mac: "08:65:F0:0E:72:D6"
+  stoplight_1_mac: "08:65:F0:29:B4:E7" # placeholder
+  stoplight_2_mac: "08:65:F0:29:B4:E8" # actual
+  stoplight_3_mac: "08:65:F0:29:B4:E9" # placeholder
+  stoplight_4_mac: "08:65:F0:0E:76:AF" # actual
+  stoplight_5_mac: "08:65:F0:0E:53:88" # actual
+  stoplight_6_mac: "08:65:F0:0E:72:D6" # actual
   stoplight_1_segments: "18"  # total segments on each bar
   stoplight_2_segments: "18"
   stoplight_3_segments: "18"
@@ -54,8 +54,8 @@ substitutions:
   stoplight_6_widths: "{13, 13, 13, 13, 13, 13, 13, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7}"
   refresh_interval: 5min    # periodic re-send to every bar
   rainbow_end_hue: "280"    # rainbow runs from hue 0 (red) to this (purple)
-  night_length: "44.4"      # default Night Light Length, % of each bar from the top (8/18)
-  signal_length: "5.6"      # default Signal Length, % of each bar from the bottom (1/18)
+  night_length: "50"        # default Night Light Length, % of each bar from the top
+  signal_length: "10"       # default Signal Length, % of each bar from the bottom
   night_color: "0xFF8811"
   night_fade_time: "60"     # default Night Light Fade Time, seconds (1 step/s)
   packet_size: "240"        # BLE packet size: a whole command fits in one packet
