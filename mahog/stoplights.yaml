@@ -9,9 +9,10 @@
 #     Time seconds (default 60), one step per second.
 #   Signal (light, brightness + RGB colour): the bottom Signal Length (default
 #     5.6%, 1/18) of each bar, always at least the last segment.
-#   Rainbow (button): red, orange, yellow, green, blue, purple in blocks of
-#     equal physical length along each bar, at full brightness. Any change to
-#     Night Light or Signal leaves it.
+#   Rainbow (light, brightness): a smooth red-to-purple rainbow along the
+#     physical length of each bar. While it's on it replaces the night light
+#     and signal on the bars, without changing their states; turn it off and
+#     they come back as they are.
 # Every change sends each bar its whole layout as one E1 03 command:
 #   night (top), black gap, signal (bottom)
 # Colours follow each segment's physical position (see stoplight_N_widths), so
@@ -52,6 +53,7 @@ substitutions:
   stoplight_5_widths: "{13, 13, 13, 13, 13, 13, 13, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7}"
   stoplight_6_widths: "{13, 13, 13, 13, 13, 13, 13, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7}"
   refresh_interval: 5min    # periodic re-send to every bar
+  rainbow_end_hue: "280"    # rainbow runs from hue 0 (red) to this (purple)
   night_length: "44.4"      # default Night Light Length, % of each bar from the top (8/18)
   signal_length: "5.6"      # default Signal Length, % of each bar from the bottom (1/18)
   night_color: "0xFF8811"
@@ -176,7 +178,7 @@ interval:
           if (id(night_steps) <= 0) return;
           id(night_now) += (id(night_target) - id(night_now)) / id(night_steps);
           if (--id(night_steps) == 0) id(night_now) = id(night_target);
-          if (!id(rainbow_on)) id(bar_changed).execute();
+          if (id(rainbow_level) <= 0) id(bar_changed).execute();  // rainbow hides it
 
 globals:
   - id: night_target     # Night Light level 0..1 it is fading to (0 = off)
@@ -191,9 +193,9 @@ globals:
   - id: signal_rgb       # Signal colour, brightness applied, 0..1 per channel
     type: std::array<float, 3>
     initial_value: "{0, 0, 0}"
-  - id: rainbow_on
-    type: bool
-    initial_value: "false"
+  - id: rainbow_level    # Rainbow light level 0..1 (0 = off)
+    type: float
+    initial_value: "0"
   - id: bar_seq          # packet sequence number
     type: uint8_t
     initial_value: "0"
@@ -289,21 +291,39 @@ script:
               // chosen by where the segment's centre physically sits along the bar
               // (0 = top, 1 = bottom), so uneven segments still look even:
               // signal over the bottom Signal Length (always at least the last
-              // segment), night over the top Night Light Length, black in between;
-              // rainbow in six equal-length blocks.
+              // segment), night over the top Night Light Length, black in between.
+              // Rainbow (while on, instead): hue sweeps smoothly from red at the
+              // first segment to purple at the last, by physical position.
               const int n_segs = bar_segs[bar];
               const auto &w = bar_widths[bar];
               double total = 0;
               for (int i = 0; i < n_segs; i++) total += (int) w.size() == n_segs ? w[i] : 1.0;
-              std::vector<uint32_t> segs;
+              std::vector<double> centres;
               double start = 0;
               for (int i = 0; i < n_segs; i++) {
                 const double wi = (int) w.size() == n_segs ? w[i] : 1.0;
-                const double centre = (start + wi / 2) / total;
+                centres.push_back((start + wi / 2) / total);
                 start += wi;
-                if (id(rainbow_on)) {
-                  const uint32_t rainbow[6] = {0xFF0000, 0xFF6400, 0xFFFF00, 0x00FF00, 0x0000FF, 0xA000FF};
-                  segs.push_back(rainbow[std::min(5, (int) (centre * 6))]);
+              }
+              std::vector<uint32_t> segs;
+              for (int i = 0; i < n_segs; i++) {
+                const double centre = centres[i];
+                if (id(rainbow_level) > 0) {
+                  const double span = centres[n_segs - 1] - centres[0];
+                  const double hue = ${rainbow_end_hue} * (span > 0 ? (centre - centres[0]) / span : 0);
+                  const double h6 = hue / 60.0, x = 1.0 - fabs(fmod(h6, 2.0) - 1.0);
+                  double rr = 0, gg = 0, bb = 0;
+                  switch ((int) h6 % 6) {
+                    case 0: rr = 1; gg = x; break;
+                    case 1: rr = x; gg = 1; break;
+                    case 2: gg = 1; bb = x; break;
+                    case 3: gg = x; bb = 1; break;
+                    case 4: rr = x; bb = 1; break;
+                    default: rr = 1; bb = x; break;
+                  }
+                  const double k = 255.0 * id(rainbow_level);
+                  segs.push_back(((uint32_t) nearbyint(rr * k) << 16) | ((uint32_t) nearbyint(gg * k) << 8) |
+                                 (uint32_t) nearbyint(bb * k));
                 } else if (centre > 1.0 - signal_len || (i == n_segs - 1 && signal_len > 0)) {
                   segs.push_back(signal);
                 } else {
@@ -426,11 +446,7 @@ output:
           if (id(night_steps) <= 0) {
             id(night_now) = state;  // fade time 0: change at once
             id(night_steps) = 0;
-            id(rainbow_on) = false;
             id(bar_changed).execute();
-          } else if (id(rainbow_on)) {
-            id(rainbow_on) = false;
-            id(bar_changed).execute();  // leave rainbow now; the fade follows
           }
   - platform: template
     id: signal_red
@@ -438,7 +454,6 @@ output:
     write_action:
       - lambda: |-
           id(signal_rgb)[0] = state;
-          id(rainbow_on) = false;
           id(bar_changed).execute();
   - platform: template
     id: signal_green
@@ -446,7 +461,6 @@ output:
     write_action:
       - lambda: |-
           id(signal_rgb)[1] = state;
-          id(rainbow_on) = false;
           id(bar_changed).execute();
   - platform: template
     id: signal_blue
@@ -454,7 +468,13 @@ output:
     write_action:
       - lambda: |-
           id(signal_rgb)[2] = state;
-          id(rainbow_on) = false;
+          id(bar_changed).execute();
+  - platform: template
+    id: rainbow_output
+    type: float
+    write_action:
+      - lambda: |-
+          id(rainbow_level) = state;
           id(bar_changed).execute();
 
 # gamma_correct 1.0: HA brightness and colour map straight to the bars' values.
@@ -475,6 +495,14 @@ light:
     red: signal_red
     green: signal_green
     blue: signal_blue
+    gamma_correct: 1.0
+    default_transition_length: 0s
+    restore_mode: RESTORE_DEFAULT_OFF
+  - platform: monochromatic
+    name: Rainbow
+    id: rainbow_light
+    icon: mdi:looks
+    output: rainbow_output
     gamma_correct: 1.0
     default_transition_length: 0s
     restore_mode: RESTORE_DEFAULT_OFF
@@ -522,14 +550,6 @@ number:
     restore_value: true
     initial_value: ${signal_length}
     on_value:
-      - script.execute: bar_changed
-
-button:
-  - platform: template
-    name: Rainbow
-    icon: mdi:looks
-    on_press:
-      - lambda: id(rainbow_on) = true;
       - script.execute: bar_changed
 
 binary_sensor:
