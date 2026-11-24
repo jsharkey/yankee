@@ -17,7 +17,9 @@ template:
   - binary_sensor:
       - name: "Electrical Grid Online"
         unique_id: electrical_grid_online
-        state: "{{ states('sensor.18kpv_grid_frequency') | float(default=0) >= 50 }}"
+        state: >
+          {{ states('sensor.18kpv_grid_frequency') | float(default=0) >= 50
+             and states('sensor.18kpv_eps_power') | float(default=0) <= 0 }}
         device_class: power
   - binary_sensor:
       # When running off-grid, save battery after we've drained beyond a shorter outage
@@ -25,9 +27,9 @@ template:
         unique_id: electrical_battery_saver
         icon: mdi:battery-heart
         delay_off: "00:02:00"
-        state: "{{ is_state('binary_sensor.electrical_grid_online', 'off') and (
-          (states('sensor.18kpv_battery_soc') | float(default=100) <= 75) or
-          (states('sensor.emporia_monitor_range_power') | float(default=0) >= 500)) }}"
+        state: >
+          {{ is_state('binary_sensor.electrical_grid_online', 'off')
+             and states('sensor.18kpv_battery_soc') | float(default=100) <= 80 }}
   - sensor:
       # When running off-grid, shed loads to keep us under 12kW inverter capacity
       - name: "Electrical Load Shed Stage"
