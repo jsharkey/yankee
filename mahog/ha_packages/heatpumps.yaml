@@ -8,7 +8,7 @@
 #   Btu/h = P * (9941.4 + 147.07*T - 1075.3*P - 10.424*T*P)    (±5% vs spec sheet)
 #
 # Below ~1.2 kW the compressor cycles on/off; readings there are estimates.
-# Below 0.1 kW the unit is treated as off: both COP and Btu/h report 0.
+# Below 0.1 kW the unit is treated as off: COP reports unknown, Btu/h reports 0.
 # Power in W or kW, and temperature in °F or °C, are converted automatically.
 
 # Heating mode (binary_sensor.mitsubishi_heating_mode):
@@ -45,7 +45,7 @@ template:
           {% endif %}
           {% set t = [5, [t, 47] | min] | max %}
           {% if p < 0.1 %}
-            0
+            {{ none }}
           {% else %}
             {{ (2.766 + 0.05073 * t - 0.2680 * p - 0.005380 * t * p) | round(2) }}
           {% endif %}

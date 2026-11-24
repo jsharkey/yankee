@@ -6,7 +6,7 @@
 #   COP   = 2.1237 + 0.06473*T - 0.09031*P - 0.01159*T*P      (±0.07 COP vs NEEP)
 #   Btu/h = P * (8037.8 + 190.92*T - 527.47*P - 30.852*T*P)   (±290 Btu/h vs NEEP)
 #
-# Below 0.1 kW the unit is treated as off: both COP and Btu/h report 0.
+# Below 0.1 kW the unit is treated as off: COP reports unknown, Btu/h reports 0.
 # Power sensors in W or kW, and temperature in °F or °C, are converted automatically.
 
 # Senville SENE-09EL-OH / SENE-09EL-IHH heat pump - estimated heating output and COP
@@ -20,7 +20,7 @@
 #
 # Unlike the other units, this one's COP drops at very low load in cold weather
 # (fixed overhead dominates), which is why output is modelled first and COP derived.
-# Below 0.1 kW the unit is treated as off: both COP and Btu/h report 0.
+# Below 0.1 kW the unit is treated as off: COP reports unknown, Btu/h reports 0.
 # Power in W or kW, and temperature in °F or °C, are converted automatically.
 
 # Heating-mode guess (binary_sensor.heat_pump_heating_mode):
@@ -63,7 +63,7 @@ template:
           {% endif %}
           {% set t = [5, [t, 47] | min] | max %}
           {% if p < 0.1 %}
-            0
+            {{ none }}
           {% else %}
             {{ (2.1237 + 0.06473 * t - 0.09031 * p - 0.01159 * t * p) | round(2) }}
           {% endif %}
@@ -109,7 +109,7 @@ template:
           {% endif %}
           {% set t = [5, [t, 47] | min] | max %}
           {% if p < 0.1 %}
-            0
+            {{ none }}
           {% else %}
             {{ (2.1237 + 0.06473 * t - 0.09031 * p - 0.01159 * t * p) | round(2) }}
           {% endif %}
@@ -154,11 +154,11 @@ template:
           {% endif %}
           {% set t = [-22, [t, 47] | min] | max %}
           {% if p < 0.1 %}
-            0
+            {{ none }}
           {% else %}
             {% set q = -851.522 + 6869.83 * p + 142.87 * t * p - 31.9245 * t * p * p
                        + 1.10515 * t * t - 0.636658 * t * t * p %}
-            {{ ([q, 0] | max / (p * 3412.14)) | round(2) }}
+            {{ (q / (p * 3412.14)) | round(2) if q > 0 else none }}
           {% endif %}
       - name: "heat_pump_basement_btus"
         unique_id: heat_pump_basement_btus
