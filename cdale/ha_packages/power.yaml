@@ -1,0 +1,85 @@
+template:
+  - sensor:
+      - name: "Power from Grid"
+        unit_of_measurement: "W"
+        device_class: power
+        state_class: measurement
+        state: >
+          {% set service = states('sensor.emporia_monitor_total_power') | float(0) %}
+          {{ max(0, service) }}
+      - name: "Power to Grid"
+        unit_of_measurement: "W"
+        device_class: power
+        state_class: measurement
+        state: >
+          {% set service = states('sensor.emporia_monitor_total_power') | float(0) %}
+          {{ max(0, -service) }}
+  - binary_sensor:
+      - name: "Electrical Grid Online"
+        unique_id: electrical_grid_online
+        state: "{{ states('sensor.18kpv_grid_frequency') | float(default=0) >= 50 }}"
+        device_class: power
+  - binary_sensor:
+      # When running off-grid, save battery after we've drained beyond a shorter outage
+      - name: "Electrical Battery Saver"
+        unique_id: electrical_battery_saver
+        icon: mdi:battery-heart
+        delay_off: "00:02:00"
+        state: "{{ is_state('binary_sensor.electrical_grid_online', 'off') and (
+          (states('sensor.18kpv_battery_soc') | float(default=100) <= 75) or
+          (states('sensor.emporia_monitor_range_power') | float(default=0) >= 500)) }}"
+  - sensor:
+      # When running off-grid, shed loads to keep us under 12kW inverter capacity
+      - name: "Electrical Load Shed Stage"
+        unique_id: electrical_load_shed_stage
+        icon: mdi:transmission-tower-off
+        state: >
+          {% set limit = 10000 %}      {# target max EPS power, W #}
+          {% set band = 500 %}         {# restore only below limit - band #}
+          {% set min_hold = 120 %}     {# seconds before stepping down #}
+          {# Sheddable loads in shed order: first entry is shed first #}
+          {% set loads = [
+            {'power': ['sensor.emporia_monitor_water_heater_power'], 'worst': 5700},
+            {'power': ['sensor.emporia_monitor_cabin_power', 'sensor.emporia_monitor_heat_pump_basement_power'], 'worst': 4000},
+          ] %}
+          {% set eps = states('sensor.18kpv_eps_power') | float(0) %}
+          {% set ns = namespace(cur=[], stage=0) %}
+          {% for l in loads %}
+            {% set ns.cur = ns.cur + [l.power | map('states') | map('float', 0) | sum] %}
+          {% endfor %}
+          {% set base = eps - ns.cur | sum %}
+          {% set prev = this.state | int(0) %}
+          {% if eps > 0 %}
+            {% for l in loads %}
+              {% set i = loop.index0 %}
+              {# loads before i assumed shed (0 W), load i at worst case, higher-priority loads at their current draw #}
+              {% set projected = base + [l.worst, ns.cur[i]] | max + ns.cur[i+1:] | sum %}
+              {% set threshold = (limit - band) if i < prev else limit %}
+              {% if projected > threshold %}{% set ns.stage = i + 1 %}{% endif %}
+            {% endfor %}
+          {% endif %}
+          {% set held = (now() - this.last_changed).total_seconds() < min_hold %}
+          {{ prev if (ns.stage < prev and held) else ns.stage }}
+  - binary_sensor:
+      - name: "Electrical Load Shed Water Heater"
+        unique_id: electrical_load_shed_water_heater
+        icon: mdi:water-boiler
+        state: "{{ states('sensor.electrical_load_shed_stage') | int(0) >= 1 }}"
+      - name: "Electrical Load Shed Aux Heat Pumps"
+        unique_id: electrical_load_shed_aux_heat_pumps
+        icon: mdi:heat-pump-outline
+        state: "{{ states('sensor.electrical_load_shed_stage') | int(0) >= 2 }}"
+
+sensor:
+  - platform: integration
+    source: sensor.power_from_grid
+    name: "Energy from Grid"
+    unit_prefix: k
+    round: 2
+    method: left
+  - platform: integration
+    source: sensor.power_to_grid
+    name: "Energy to Grid"
+    unit_prefix: k
+    round: 2
+    method: left
