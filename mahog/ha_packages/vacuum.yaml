@@ -1,0 +1,119 @@
+automation:
+  - id: vacuum_attention_pushover
+    alias: "Vacuum – needs attention (Pushover)"
+    description: >
+      Pushover alert when the MOVA P10 Pro Ultra (Valetudo) errors/gets stuck,
+      stalls away from the dock, a dock tank/bag needs service, or a consumable
+      is nearly worn out.
+    mode: queued
+    max: 10
+
+    triggers:
+      # 1. Robot error (stuck, brush jammed, wheel lifted, etc.)
+      - trigger: state
+        entity_id: vacuum.valetudo_enchantinghonorablemink
+        to: error
+        not_from: [unavailable, unknown]
+        for: { seconds: 30 }          # ignore brief self-clearing errors
+        id: error
+
+      # 2. Robot sitting idle/paused somewhere that isn't the dock
+      - trigger: state
+        entity_id: vacuum.valetudo_enchantinghonorablemink
+        to: [idle, paused]
+        not_from: [unavailable, unknown]
+        for: { minutes: 15 }
+        id: stalled
+
+      # 3. Dock components: clean water empty, dirty water full, detergent empty,
+      #    dust bag full, or any of them missing
+      - trigger: state
+        entity_id:
+          - sensor.valetudo_enchantinghonorablemink_freshwater_dock_component
+          - sensor.valetudo_enchantinghonorablemink_wastewater_dock_component
+          - sensor.valetudo_enchantinghonorablemink_detergent_dock_component
+          - sensor.valetudo_enchantinghonorablemink_dustbag_dock_component
+        not_from: [unavailable, unknown]
+        not_to: [ok, unavailable, unknown]
+        for: { minutes: 1 }
+        id: dock
+
+      # 4. Dock itself reports an error
+      - trigger: state
+        entity_id: sensor.valetudo_enchantinghonorablemink_dock_status
+        to: error
+        for: { seconds: 30 }
+        id: dock_error
+
+      # 5. Consumables nearly worn out (values are minutes remaining)
+      - trigger: numeric_state
+        entity_id:
+          - sensor.valetudo_enchantinghonorablemink_main_brush
+          - sensor.valetudo_enchantinghonorablemink_right_brush
+          - sensor.valetudo_enchantinghonorablemink_main_filter
+        below: 600                    # ~10 hours of runtime left
+        id: consumable
+
+    actions:
+      - choose:
+          - conditions: [{ condition: trigger, id: error }]
+            sequence:
+              - action: notify.pushover
+                data:
+                  title: "🧹 Vacuum error"
+                  message: >-
+                    {{ states('sensor.valetudo_enchantinghonorablemink_error') }}
+                    {%- set sub = state_attr('sensor.valetudo_enchantinghonorablemink_error','subsystem') %}
+                    {%- if sub and sub != 'none' %} ({{ sub }}){% endif %}.
+                    Battery {{ states('sensor.valetudo_enchantinghonorablemink_battery_level') }}%.
+                  data:
+                    priority: 1             # high priority, bypasses quiet hours
+
+          - conditions: [{ condition: trigger, id: stalled }]
+            sequence:
+              - action: notify.pushover
+                data:
+                  title: "🧹 Vacuum stopped off the dock"
+                  message: >-
+                    It's been {{ trigger.to_state.state }} for 15 min and isn't docked.
+                    Battery {{ states('sensor.valetudo_enchantinghonorablemink_battery_level') }}%.
+
+          - conditions: [{ condition: trigger, id: dock }]
+            sequence:
+              - variables:
+                  part: >-
+                    {{ {'freshwater': 'Clean water tank',
+                        'wastewater': 'Dirty water tank',
+                        'detergent':  'Detergent',
+                        'dustbag':    'Dust bag'}
+                       [trigger.entity_id.split('_enchantinghonorablemink_')[1].split('_dock')[0]] }}
+                  action_needed: >-
+                    {{ {'empty': 'is empty – refill it',
+                        'full': 'is full – empty/replace it',
+                        'missing': 'is missing – reseat it'}
+                       .get(trigger.to_state.state, 'reports ' ~ trigger.to_state.state) }}
+              - action: notify.pushover
+                data:
+                  title: "🧹 Dock needs service"
+                  message: "{{ part }} {{ action_needed }}."
+
+          - conditions: [{ condition: trigger, id: dock_error }]
+            sequence:
+              - action: notify.pushover
+                data:
+                  title: "🧹 Dock error"
+                  message: "The base station reports an error. Check the Valetudo UI."
+                  data:
+                    priority: 1
+
+          - conditions: [{ condition: trigger, id: consumable }]
+            sequence:
+              - action: notify.pushover
+                data:
+                  title: "🧹 Consumable wearing out"
+                  message: >-
+                    {{ trigger.to_state.name | replace('Valetudo MOVA P10 Pro Ultra EnchantingHonorableMink ', '') }}
+                    has about {{ (trigger.to_state.state | int / 60) | round(0) }} h left.
+                    Replace it, then press its reset button in HA.
+                  data:
+                    priority: -1            # quiet
