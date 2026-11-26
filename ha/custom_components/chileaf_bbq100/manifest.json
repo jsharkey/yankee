@@ -1,0 +1,21 @@
+{
+  "domain": "chileaf_bbq100",
+  "name": "Chileaf BBQ100 Thermometer",
+  "bluetooth": [
+    {
+      "local_name": "BBQ100*",
+      "connectable": true
+    }
+  ],
+  "codeowners": [],
+  "config_flow": true,
+  "dependencies": ["bluetooth_adapters"],
+  "documentation": "https://github.com/jsharkey/yankee/tree/main/ha/custom_components/chileaf_bbq100",
+  "integration_type": "device",
+  "iot_class": "local_push",
+  "requirements": [
+    "bleak-retry-connector>=1.17.1",
+    "bleak>=0.17.0"
+  ],
+  "version": "0.1.0"
+}

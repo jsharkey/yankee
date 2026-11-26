@@ -1,0 +1,53 @@
+{
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "description": "Choose a BBQ100 thermometer to set up. Close the Chi-BBQ phone app first: the thermometer accepts only one connection.",
+        "data": { "address": "Device" }
+      },
+      "bluetooth_confirm": {
+        "description": "Set up {name}? Close the Chi-BBQ phone app first: the thermometer accepts only one connection."
+      }
+    },
+    "abort": {
+      "already_configured": "This thermometer is already set up.",
+      "no_devices_found": "No unconfigured BBQ100 thermometers were heard over Bluetooth. Switch it on and close the phone app.",
+      "not_supported": "This device is not a BBQ100."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "probe_temperature": { "name": "Probe {probe}" },
+      "probe_mode": {
+        "name": "Probe {probe} mode",
+        "state": { "meat": "Meat", "temperature": "Temperature", "timer": "Timer" }
+      },
+      "probe_time": { "name": "Probe {probe} time" },
+      "version": { "name": "Version reply" }
+    },
+    "binary_sensor": {
+      "probe_alarm": { "name": "Probe {probe} alarm" },
+      "any_alarm": { "name": "Alarm" },
+      "connected": { "name": "Connected" }
+    },
+    "button": {
+      "stop_alarm": { "name": "Probe {probe} stop alarm" }
+    },
+    "number": {
+      "target_temperature": { "name": "Probe {probe} target" },
+      "timer": { "name": "Probe {probe} timer" }
+    },
+    "select": {
+      "meat": { "name": "Probe {probe} meat" },
+      "display_unit": {
+        "name": "Display unit",
+        "state": { "celsius": "Celsius", "fahrenheit": "Fahrenheit" }
+      }
+    },
+    "switch": {
+      "running": { "name": "Probe {probe} running" },
+      "connection": { "name": "Bluetooth connection" }
+    }
+  }
+}
